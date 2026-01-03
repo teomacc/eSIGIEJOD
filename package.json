@@ -1,0 +1,41 @@
+{
+  "name": "esigieiod",
+  "version": "1.0.0",
+  "description": "eSIGIEJOD - Sistema de Gestão Financeira Multi-Igreja",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm --workspace backend install && npm --workspace frontend install",
+    "dev": "npm --workspace backend run start:dev & npm --workspace frontend run dev",
+    "dev:backend": "npm --workspace backend run start:dev",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "build": "npm --workspace backend run build && npm --workspace frontend run build",
+    "build:backend": "npm --workspace backend run build",
+    "build:frontend": "npm --workspace frontend run build",
+    "start:prod": "npm --workspace backend run start:prod",
+    "test": "npm --workspace backend run test",
+    "test:watch": "npm --workspace backend run test:watch",
+    "lint": "npm --workspace backend run lint && npm --workspace frontend run lint",
+    "format": "npm --workspace backend run format && npm --workspace frontend run format",
+    "db:migrate": "npm --workspace backend run db:migrate",
+    "db:seed": "npm --workspace backend run db:seed"
+  },
+  "keywords": [
+    "financial",
+    "management",
+    "church",
+    "multi-tenant",
+    "audit",
+    "compliance",
+    "approval",
+    "mozambique"
+  ],
+  "author": "eSIGIEJOD Team",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

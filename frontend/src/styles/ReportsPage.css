@@ -1,0 +1,274 @@
+/**
+ * ESTILOS - PÁGINA RELATÓRIOS (ReportsPage.css)
+ * 
+ * Estilos específicos da página de relatórios
+ */
+
+.page-header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.page-header a {
+  text-decoration: none;
+  color: var(--color-primary);
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.page-header a:hover {
+  opacity: 0.8;
+}
+
+.report-cards-container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-2xl);
+}
+
+@media (max-width: 768px) {
+  .report-cards-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-card {
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-light);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.report-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+}
+
+.report-card h3 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md);
+  color: #333;
+}
+
+.report-card p {
+  color: var(--color-secondary);
+  margin-bottom: var(--spacing-lg);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.date-range-inputs {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.date-input {
+  flex: 1;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  transition: border-color 0.2s ease;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.fund-select {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  transition: border-color 0.2s ease;
+}
+
+.fund-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.generate-button-primary {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  transition: background-color 0.2s ease;
+}
+
+.generate-button-primary:hover {
+  background-color: #0056b3;
+}
+
+.generate-button-success {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-success);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  transition: background-color 0.2s ease;
+}
+
+.generate-button-success:hover {
+  background-color: #218838;
+}
+
+.generate-button-warning {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-warning);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  transition: background-color 0.2s ease;
+}
+
+.generate-button-warning:hover {
+  background-color: #e0a800;
+}
+
+.generate-button-info {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-info);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  transition: background-color 0.2s ease;
+}
+
+.generate-button-info:hover {
+  background-color: #117a8b;
+}
+
+.generate-button-danger {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-danger);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  transition: background-color 0.2s ease;
+}
+
+.generate-button-danger:hover {
+  background-color: #c82333;
+}
+
+.generate-button-secondary {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-secondary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  transition: background-color 0.2s ease;
+}
+
+.generate-button-secondary:hover {
+  background-color: #5a6268;
+}
+
+.recent-reports-section {
+  margin-top: var(--spacing-2xl);
+}
+
+.recent-reports-section h2 {
+  margin-bottom: var(--spacing-lg);
+}
+
+.reports-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.reports-table thead tr {
+  border-bottom: 2px solid var(--border-light);
+  background-color: var(--bg-light);
+}
+
+.reports-table th {
+  text-align: left;
+  padding: var(--spacing-md);
+  font-weight: 600;
+  color: #333;
+}
+
+.reports-table tbody tr {
+  border-bottom: 1px solid var(--border-lighter);
+}
+
+.reports-table tbody tr:hover {
+  background-color: var(--bg-light);
+}
+
+.reports-table td {
+  padding: var(--spacing-md);
+}
+
+.reports-table td:last-child {
+  text-align: center;
+}
+
+.report-action-button {
+  padding: 4px 8px;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: var(--spacing-sm);
+  transition: background-color 0.2s ease;
+}
+
+.report-action-button:hover {
+  background-color: #0056b3;
+}
+
+.info-box {
+  margin-top: var(--spacing-2xl);
+  padding: var(--spacing-lg);
+  background-color: var(--bg-lighter);
+  border: 1px solid #b3d9ff;
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.info-box h4 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md);
+}
+
+.info-box ul {
+  list-style: none;
+  padding: 0;
+}
+
+.info-box li {
+  padding: var(--spacing-sm) 0;
+}
