@@ -11,14 +11,16 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
  * Não é permitido pular estados (ex: PENDING diretamente para APPROVED)
  * Sistema valida transições em requisitions.service.ts
  */
-export enum RequisitionState {
-  PENDING = 'PENDENTE', // Criada, aguardando análise
-  UNDER_REVIEW = 'EM_ANALISE', // Sob revisão do aprovador
-  APPROVED = 'APROVADA', // Aprovada, pode ser executada
-  REJECTED = 'REJEITADA', // Rejeitada, fim do ciclo
-  CANCELLED = 'CANCELADA', // Cancelada, fim do ciclo
-  EXECUTED = 'EXECUTADA', // Executada (pagamento realizado)
-}
+export const RequisitionState = {
+  PENDING: 'PENDENTE',
+  UNDER_REVIEW: 'EM_ANALISE',
+  APPROVED: 'APROVADA',
+  REJECTED: 'REJEITADA',
+  CANCELLED: 'CANCELADA',
+  EXECUTED: 'EXECUTADA',
+};
+
+export type RequisitionState = typeof RequisitionState[keyof typeof RequisitionState];
 
 /**
  * ENUM - Categorias de Despesa
@@ -31,24 +33,26 @@ export enum RequisitionState {
  * 2. Gerar relatórios por categoria
  * 3. Definir limites por categoria
  */
-export enum ExpenseCategory {
-  FOOD = 'ALIMENTACAO', // Alimentação
-  TRANSPORT = 'TRANSPORTE', // Transporte
-  ACCOMMODATION = 'HOSPEDAGEM', // Hospedagem
-  OFFICE_MATERIAL = 'MATERIAL_ESCRITORIO', // Material de escritório
-  LITURGICAL_MATERIAL = 'MATERIAL_LITURGICO', // Material litúrgico
-  EQUIPMENT = 'EQUIPAMENTOS', // Equipamentos
-  MAINTENANCE = 'MANUTENCAO', // Manutenção
-  SOCIAL_SUPPORT = 'APOIO_SOCIAL', // Apoio social
-  EVENT_ORGANIZATION = 'ORGANIZACAO_EVENTOS', // Organização de eventos
-  TRAINING = 'FORMACAO_SEMINARIOS', // Formação/seminários
-  HEALTH_EMERGENCY = 'SAUDE_EMERGENCIA', // Saúde/emergência
-  MISSIONARY_PROJECTS = 'PROJECTOS_MISSIONARIOS', // Projectos missionários
-  COMMUNICATION = 'COMUNICACAO', // Comunicação (internet, telefone)
-  ENERGY_WATER = 'ENERGIA_AGUA', // Energia e água
-  FUEL = 'COMBUSTIVEL', // Combustível
-  OTHER = 'OUTROS', // Outro (com justificação obrigatória)
-}
+export const ExpenseCategory = {
+  FOOD: 'ALIMENTACAO',
+  TRANSPORT: 'TRANSPORTE',
+  ACCOMMODATION: 'HOSPEDAGEM',
+  OFFICE_MATERIAL: 'MATERIAL_ESCRITORIO',
+  LITURGICAL_MATERIAL: 'MATERIAL_LITURGICO',
+  EQUIPMENT: 'EQUIPAMENTOS',
+  MAINTENANCE: 'MANUTENCAO',
+  SOCIAL_SUPPORT: 'APOIO_SOCIAL',
+  EVENT_ORGANIZATION: 'ORGANIZACAO_EVENTOS',
+  TRAINING: 'FORMACAO_SEMINARIOS',
+  HEALTH_EMERGENCY: 'SAUDE_EMERGENCIA',
+  MISSIONARY_PROJECTS: 'PROJECTOS_MISSIONARIOS',
+  COMMUNICATION: 'COMUNICACAO',
+  ENERGY_WATER: 'ENERGIA_AGUA',
+  FUEL: 'COMBUSTIVEL',
+  OTHER: 'OUTROS',
+};
+
+export type ExpenseCategory = typeof ExpenseCategory[keyof typeof ExpenseCategory];
 
 /**
  * ENUM - Magnitude da Requisição
@@ -66,12 +70,14 @@ export enum ExpenseCategory {
  * Requisição de 15.000 MT → MEDIUM → Precisa aprovação DIRECTOR
  * Requisição de 60.000 MT → CRITICAL → Precisa aprovação PASTOR
  */
-export enum RequisitionMagnitude {
-  SMALL = 'PEQUENA', // ≤ 5.000 MT
-  MEDIUM = 'MEDIA', // 5.001 – 20.000 MT
-  LARGE = 'GRANDE', // 20.001 – 50.000 MT
-  CRITICAL = 'CRITICA', // > 50.000 MT
-}
+export const RequisitionMagnitude = {
+  SMALL: 'PEQUENA',
+  MEDIUM: 'MEDIA',
+  LARGE: 'GRANDE',
+  CRITICAL: 'CRITICA',
+};
+
+export type RequisitionMagnitude = typeof RequisitionMagnitude[keyof typeof RequisitionMagnitude];
 
 /**
  * ENTIDADE - Requisição de Despesa
@@ -126,7 +132,7 @@ export class Requisition {
 
   // Categoria da despesa
   // Uma das 16 categorias definidas acima
-  @Column('enum', { enum: ExpenseCategory })
+  @Column('varchar')
   category!: ExpenseCategory;
 
   // Valor SOLICITADO (valor original pedido)
@@ -145,12 +151,12 @@ export class Requisition {
   // Calculada automaticamente ao criar requisição
   // Baseada em requestedAmount
   // PEQUENA (≤5.000) → MEDIA (≤20.000) → GRANDE (≤50.000) → CRITICA (>50.000)
-  @Column('enum', { enum: RequisitionMagnitude })
+  @Column('varchar')
   magnitude!: RequisitionMagnitude;
 
   // Estado atual da requisição
   // PENDENTE → EM_ANALISE → APROVADA/REJEITADA → EXECUTADA/CANCELADA
-  @Column('enum', { enum: RequisitionState, default: RequisitionState.PENDING })
+  @Column('varchar', { default: RequisitionState.PENDING })
   state!: RequisitionState;
 
   // Justificação da despesa (obrigatória)

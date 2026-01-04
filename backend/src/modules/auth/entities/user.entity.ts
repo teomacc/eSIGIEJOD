@@ -13,13 +13,15 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
  * Hierarquia de aprovação (da menor para maior autoridade):
  * TREASURER < DIRECTOR < BOARD < PASTOR
  */
-export enum UserRole {
-  PASTOR = 'PASTOR',
-  DIRECTOR = 'DIRECTOR',
-  TREASURER = 'TREASURER',
-  AUDITOR = 'AUDITOR',
-  VIEWER = 'VIEWER',
-}
+export const UserRole = {
+  PASTOR: 'PASTOR',
+  DIRECTOR: 'DIRECTOR',
+  TREASURER: 'TREASURER',
+  AUDITOR: 'AUDITOR',
+  VIEWER: 'VIEWER',
+};
+
+export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 /**
  * ENTIDADE - Usuário

@@ -9,12 +9,14 @@ import { ConfigService } from '@nestjs/config';
  * Hierarquia (baixo para alto):
  * TREASURER < DIRECTOR < BOARD < PASTOR
  */
-export enum ApprovalLevel {
-  TREASURER = 'TREASURER', // Tesoureiro Local - até 5.000 MT
-  DIRECTOR = 'DIRECTOR', // Director Financeiro - até 20.000 MT
-  BOARD = 'BOARD', // Conselho de Direcção - até 50.000 MT
-  PASTOR = 'PASTOR', // Pastor Sénior - sem limite
-}
+export const ApprovalLevel = {
+  TREASURER: 'TREASURER', // Tesoureiro Local - até 5.000 MT
+  DIRECTOR: 'DIRECTOR', // Director Financeiro - até 20.000 MT
+  BOARD: 'BOARD', // Conselho de Direcção - até 50.000 MT
+  PASTOR: 'PASTOR', // Pastor Sénior - sem limite
+} as const;
+
+export type ApprovalLevel = typeof ApprovalLevel[keyof typeof ApprovalLevel];
 
 /**
  * SERVIÇO DE APROVAÇÃO (ApprovalService)

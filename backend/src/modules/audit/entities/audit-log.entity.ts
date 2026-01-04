@@ -11,19 +11,21 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
  * - entityId: Que entidade foi afectada
  * - changes: Antes/depois dos dados
  */
-export enum AuditAction {
-  INCOME_RECORDED = 'INCOME_RECORDED', // Entrada de dinheiro registada
-  REQUISITION_CREATED = 'REQUISITION_CREATED', // Requisição criada
-  REQUISITION_APPROVED = 'REQUISITION_APPROVED', // Requisição aprovada
-  REQUISITION_REJECTED = 'REQUISITION_REJECTED', // Requisição rejeitada
-  REQUISITION_EXECUTED = 'REQUISITION_EXECUTED', // Requisição executada (pagamento)
-  REQUISITION_CANCELLED = 'REQUISITION_CANCELLED', // Requisição cancelada
-  FUND_UPDATED = 'FUND_UPDATED', // Saldo de fundo atualizado
-  USER_LOGIN = 'USER_LOGIN', // Usuário fez login
-  USER_CREATED = 'USER_CREATED', // Novo usuário criado
-  SETTINGS_CHANGED = 'SETTINGS_CHANGED', // Configuração alterada
-  REPORT_GENERATED = 'REPORT_GENERATED', // Relatório gerado
-}
+export const AuditAction = {
+  INCOME_RECORDED: 'INCOME_RECORDED',
+  REQUISITION_CREATED: 'REQUISITION_CREATED',
+  REQUISITION_APPROVED: 'REQUISITION_APPROVED',
+  REQUISITION_REJECTED: 'REQUISITION_REJECTED',
+  REQUISITION_EXECUTED: 'REQUISITION_EXECUTED',
+  REQUISITION_CANCELLED: 'REQUISITION_CANCELLED',
+  FUND_UPDATED: 'FUND_UPDATED',
+  USER_LOGIN: 'USER_LOGIN',
+  USER_CREATED: 'USER_CREATED',
+  SETTINGS_CHANGED: 'SETTINGS_CHANGED',
+  REPORT_GENERATED: 'REPORT_GENERATED',
+};
+
+export type AuditAction = typeof AuditAction[keyof typeof AuditAction];
 
 /**
  * ENTIDADE - Log de Auditoria
@@ -79,7 +81,7 @@ export class AuditLog {
 
   // Tipo de ação realizada
   // Uma das ações definidas no enum acima
-  @Column('enum', { enum: AuditAction })
+  @Column('varchar')
   action!: AuditAction;
 
   // ID da entidade afectada (optional)

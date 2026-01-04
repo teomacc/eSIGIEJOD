@@ -40,31 +40,44 @@ import { ReportsModule } from './modules/reports/reports.module';
     // Utiliza variáveis do .env para conectar
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DATABASE_HOST'), // localhost
-        port: configService.get('DATABASE_PORT'), // 5432
-        username: configService.get('DATABASE_USER'), // postgres
-        password: configService.get('DATABASE_PASSWORD'), // sua_senha
-        database: configService.get('DATABASE_NAME'), // esigiejod
-        entities: ['src/**/*.entity.ts'],
-        migrations: ['src/migrations/**/*.ts'],
-        // Em desenvolvimento, sincronizar schema automaticamente
-        synchronize: configService.get('NODE_ENV') === 'development',
-        logging: configService.get('NODE_ENV') === 'development',
-      }),
+      useFactory: (configService: ConfigService) => {
+        const isProduction = configService.get('NODE_ENV') === 'production';
+        
+        return {
+          type: 'postgres',
+          host: configService.get('DATABASE_HOST'),
+          port: parseInt(configService.get('DATABASE_PORT') || '5432'),
+          username: configService.get('DATABASE_USER'),
+          password: configService.get('DATABASE_PASSWORD'),
+          database: configService.get('DATABASE_NAME'),
+          // Em desenvolvimento usa src, em produção usa dist compilado
+          entities: isProduction 
+            ? ['dist/**/*.entity.js']
+            : ['src/**/*.entity.ts'],
+          migrations: isProduction
+            ? ['dist/migrations/**/*.js']
+            : ['src/migrations/**/*.ts'],
+          synchronize: !isProduction,
+          logging: !isProduction,
+        };
+      },
     }),
 
     // Configura JWT para tokens de autenticação
     // Token contém: userId, email, roles, churchId
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET'), // Chave para assinar tokens
-        signOptions: {
-          expiresIn: configService.get('JWT_EXPIRATION'), // 24h
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get('JWT_SECRET');
+        const expiresIn = configService.get('JWT_EXPIRATION') || '24h';
+        
+        return {
+          secret: secret,
+          signOptions: {
+            expiresIn: expiresIn,
+          },
+        };
+      },
       global: true, // Disponível em toda a aplicação
     }),
 

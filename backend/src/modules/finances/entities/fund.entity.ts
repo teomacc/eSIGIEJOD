@@ -11,18 +11,20 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
  * - Oferta para missões → vai para Fundo de Missões
  * - Oferta para construção → vai para Fundo de Construção
  */
-export enum FundType {
-  GENERAL = 'FUNDO_GERAL', // Fundo Geral - despesas operacionais
-  CONSTRUCTION = 'FUNDO_CONSTRUCAO', // Construção/renovação
-  MISSIONS = 'FUNDO_MISSOES', // Programas missionários
-  SOCIAL = 'FUNDO_SOCIAL', // Ajuda a necessitados
-  EVENTS = 'FUNDO_EVENTOS', // Organização de eventos
-  EMERGENCY = 'FUNDO_EMERGENCIA', // Reservas de emergência
-  SPECIAL_PROJECTS = 'FUNDO_PROJECTOS_ESPECIAIS', // Projectos especiais
-  YOUTH = 'FUNDO_JUVENTUDE', // Atividades de juventude
-  WOMEN = 'FUNDO_MULHERES', // Atividades do grupo de mulheres
-  MAINTENANCE = 'FUNDO_MANUTENCAO', // Manutenção de infraestrutura
-}
+export const FundType = {
+  GENERAL: 'FUNDO_GERAL',
+  CONSTRUCTION: 'FUNDO_CONSTRUCAO',
+  MISSIONS: 'FUNDO_MISSOES',
+  SOCIAL: 'FUNDO_SOCIAL',
+  EVENTS: 'FUNDO_EVENTOS',
+  EMERGENCY: 'FUNDO_EMERGENCIA',
+  SPECIAL_PROJECTS: 'FUNDO_PROJECTOS_ESPECIAIS',
+  YOUTH: 'FUNDO_JUVENTUDE',
+  WOMEN: 'FUNDO_MULHERES',
+  MAINTENANCE: 'FUNDO_MANUTENCAO',
+};
+
+export type FundType = typeof FundType[keyof typeof FundType];
 
 /**
  * ENTIDADE - Fundo Financeiro
@@ -57,7 +59,7 @@ export class Fund {
 
   // Tipo de fundo
   // Exemplo: FUNDO_GERAL, FUNDO_CONSTRUCAO, etc.
-  @Column('enum', { enum: FundType })
+  @Column('varchar')
   type!: FundType;
 
   // Saldo atual do fundo

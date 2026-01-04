@@ -13,16 +13,18 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeor
  * - TRANSFERENCIA_IGREJAS: De outra igreja da rede
  * - AJUSTE_AUTORIZADO: Correcção de erro anterior (novo registro, não update)
  */
-export enum IncomeType {
-  TITHE = 'DIZIMO', // Dízimo
-  OFFERING = 'OFERTA_NORMAL', // Oferta normal
-  SPECIAL_OFFERING = 'OFERTA_ESPECIAL', // Oferta especial
-  DESIGNATED_OFFERING = 'OFERTA_DIRECCIONADA', // Oferta para fundo específico
-  MONTHLY_CONTRIBUTION = 'CONTRIBUICAO_MENSAL', // Contribuição mensal
-  EXTERNAL_DONATION = 'DONATIVO_EXTERNO', // Doação externa
-  INTER_CHURCH_TRANSFER = 'TRANSFERENCIA_IGREJAS', // De outra igreja
-  AUTHORIZED_ADJUSTMENT = 'AJUSTE_AUTORIZADO', // Ajuste autorizado
-}
+export const IncomeType = {
+  TITHE: 'DIZIMO',
+  OFFERING: 'OFERTA_NORMAL',
+  SPECIAL_OFFERING: 'OFERTA_ESPECIAL',
+  DESIGNATED_OFFERING: 'OFERTA_DIRECCIONADA',
+  MONTHLY_CONTRIBUTION: 'CONTRIBUICAO_MENSAL',
+  EXTERNAL_DONATION: 'DONATIVO_EXTERNO',
+  INTER_CHURCH_TRANSFER: 'TRANSFERENCIA_IGREJAS',
+  AUTHORIZED_ADJUSTMENT: 'AJUSTE_AUTORIZADO',
+};
+
+export type IncomeType = typeof IncomeType[keyof typeof IncomeType];
 
 /**
  * ENTIDADE - Entrada de Dinheiro
@@ -76,7 +78,7 @@ export class Income {
 
   // Tipo de entrada
   // Exemplo: DIZIMO, OFERTA_NORMAL, DONATIVO_EXTERNO
-  @Column('enum', { enum: IncomeType })
+  @Column('varchar')
   type!: IncomeType;
 
   // Montante recebido
