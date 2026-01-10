@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "ES2021",
-    "lib": ["ES2021"],
+    "target": "ES2020",
+    "lib": ["ES2020"],
     "declaration": true,
     "outDir": "./dist",
     "baseUrl": "./",
@@ -24,7 +24,8 @@
     "allowJs": true,
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "useDefineForClassFields": false
   },
   "include": [
     "src"
