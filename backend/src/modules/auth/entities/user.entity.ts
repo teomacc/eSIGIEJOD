@@ -45,6 +45,45 @@ export enum FuncaoMinisterial {
 }
 
 /**
+ * ENUM - Províncias de Moçambique
+ */
+export enum Provincia {
+  MAPUTO_CIDADE = 'Maputo Cidade',
+  MAPUTO_PROVINCIA = 'Maputo Província',
+  GAZA = 'Gaza',
+  INHAMBANE = 'Inhambane',
+  SOFALA = 'Sofala',
+  MANICA = 'Manica',
+  TETE = 'Tete',
+  ZAMBEZIA = 'Zambézia',
+  NAMPULA = 'Nampula',
+  CABO_DELGADO = 'Cabo Delgado',
+  NIASSA = 'Niassa',
+}
+
+/**
+ * ENUM - Departamentos Evangélicos
+ */
+export enum Departamento {
+  EVANGELISMO = 'Evangelismo',
+  MISSOES = 'Missões',
+  ENSINO = 'Ensino',
+  LOUVOR = 'Louvor e Adoração',
+  INTERCESSAO = 'Intercessão',
+  JOVENS = 'Ministério de Jovens',
+  CRIANCAS = 'Ministério Infantil',
+  MULHERES = 'Ministério de Mulheres',
+  HOMENS = 'Ministério de Homens',
+  CASAIS = 'Ministério de Casais',
+  MIDIA = 'Mídia e Comunicação',
+  RECEPCAO = 'Recepção e Hospitalidade',
+  ADMINISTRACAO = 'Administração',
+  FINANCAS = 'Finanças',
+  DIACONIA = 'Diaconia',
+  ACONSELHAMENTO = 'Aconselhamento',
+}
+
+/**
  * ENTIDADE - Usuário
  * 
  * Estrutura completa para gestão de membros e obreiros
@@ -128,8 +167,8 @@ export class User {
   @Column({ length: 100, nullable: true })
   cidade?: string;
 
-  @Column({ length: 100, nullable: true })
-  provincia?: string;
+  @Column({ type: 'enum', enum: Provincia, nullable: true })
+  provincia?: Provincia;
 
   // ========================================================================
   // 4️⃣ DADOS DE ACESSO AO SISTEMA (Autenticação)
@@ -160,8 +199,8 @@ export class User {
   @Column('uuid')
   churchId!: string;
 
-  @Column({ length: 200, nullable: true })
-  departamento?: string;
+  @Column({ type: 'enum', enum: Departamento, nullable: true })
+  departamento?: Departamento;
 
   @Column({ type: 'int', default: 0 })
   nivelAprovacao!: number;

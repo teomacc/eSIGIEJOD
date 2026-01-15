@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException, ConflictExcepti
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserRole, FuncaoMinisterial } from './entities/user.entity';
+import { User, UserRole, FuncaoMinisterial, Sexo, EstadoCivil, Provincia, Departamento } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto, RegisterResponseDto } from './dto/register.dto';
 
@@ -176,21 +176,39 @@ export class AuthService {
     // 6. CRIAR NOVO USUÁRIO
     const newUser = this.usersRepository.create({
       // Identificação
-      nomeCompleto: registerDto.name,
+      nomeCompleto: registerDto.nomeCompleto,
+      apelido: registerDto.apelido,
+      sexo: registerDto.sexo as Sexo,
+      dataNascimento: registerDto.dataNascimento ? new Date(registerDto.dataNascimento) : undefined,
+      estadoCivil: registerDto.estadoCivil as EstadoCivil,
+      nacionalidade: registerDto.nacionalidade || 'Moçambicana',
+      documentoIdentidade: registerDto.documentoIdentidade,
+      
+      // Contactos
       email: registerDto.email,
-      username: registerDto.email.split('@')[0], // Username = parte antes do @
+      telefone: registerDto.telefone,
+      endereco: registerDto.endereco,
+      cidade: registerDto.cidade,
+      provincia: registerDto.provincia as Provincia,
       
       // Autenticação
+      username: registerDto.username || registerDto.email.split('@')[0],
       passwordHash: hashedPassword,
       roles: registerDto.roles || [UserRole.VIEWER],
       ativo: true,
       
       // Ministerial
-      funcaoMinisterial: FuncaoMinisterial.MEMBRO,
-      ativoNoMinisterio: true,
+      funcaoMinisterial: (registerDto.funcaoMinisterial as FuncaoMinisterial) || FuncaoMinisterial.MEMBRO,
+      ministerio: registerDto.ministerio,
+      dataConversao: registerDto.dataConversao ? new Date(registerDto.dataConversao) : undefined,
+      dataBatismo: registerDto.dataBatismo ? new Date(registerDto.dataBatismo) : undefined,
+      igrejaLocal: registerDto.igrejaLocal,
+      liderDireto: registerDto.liderDireto || currentUser.sub, // Se não tem líder, o criador é o líder
+      ativoNoMinisterio: registerDto.ativoNoMinisterio !== false,
       
       // Administrativo
       churchId: registerDto.churchId,
+      departamento: registerDto.departamento as Departamento,
       
       // Auditoria
       criadoPor: currentUser.sub,

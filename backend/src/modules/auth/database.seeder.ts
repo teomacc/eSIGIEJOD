@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole, Sexo, FuncaoMinisterial } from '../auth/entities/user.entity';
+import { User, UserRole, Sexo, FuncaoMinisterial, Departamento } from '../auth/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -122,7 +122,7 @@ export class DatabaseSeeder implements OnModuleInit {
       
       // Administrativo
       churchId: defaultChurchId,
-      departamento: 'Administração',
+      departamento: Departamento.ADMINISTRACAO,
       nivelAprovacao: 999, // Máximo
       assinaDocumentos: true,
       limiteFinanceiro: 999999999, // Sem limite
