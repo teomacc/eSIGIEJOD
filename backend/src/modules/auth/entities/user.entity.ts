@@ -1,85 +1,190 @@
+
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 /**
  * ENUM - Papéis/Roles de Usuários
- * 
- * Define a hierarquia de autoridade no sistema:
- * - PASTOR: Aprovação suprema, acesso total
- * - DIRECTOR: Director financeiro, aprova até 50.000 MT
- * - TREASURER: Tesoureiro local, aprova até 5.000 MT
- * - AUDITOR: Auditor, acesso de leitura a tudo
- * - VIEWER: Apenas visualização limitada
- * 
- * Hierarquia de aprovação (da menor para maior autoridade):
- * TREASURER < DIRECTOR < BOARD < PASTOR
  */
-export const UserRole = {
-  PASTOR: 'PASTOR',
-  DIRECTOR: 'DIRECTOR',
-  TREASURER: 'TREASURER',
-  AUDITOR: 'AUDITOR',
-  VIEWER: 'VIEWER',
-};
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  PASTOR = 'PASTOR',
+  DIRECTOR = 'DIRECTOR',
+  TREASURER = 'TREASURER',
+  AUDITOR = 'AUDITOR',
+  OBREIRO = 'OBREIRO',
+  VIEWER = 'VIEWER',
+}
 
-export type UserRole = typeof UserRole[keyof typeof UserRole];
+/**
+ * ENUM - Sexo
+ */
+export enum Sexo {
+  MASCULINO = 'MASCULINO',
+  FEMININO = 'FEMININO',
+}
+
+/**
+ * ENUM - Estado Civil
+ */
+export enum EstadoCivil {
+  SOLTEIRO = 'SOLTEIRO',
+  CASADO = 'CASADO',
+  VIUVO = 'VIUVO',
+  DIVORCIADO = 'DIVORCIADO',
+}
+
+/**
+ * ENUM - Função Ministerial
+ */
+export enum FuncaoMinisterial {
+  PASTOR = 'PASTOR',
+  DIACONO = 'DIACONO',
+  PRESBITERO = 'PRESBITERO',
+  EVANGELISTA = 'EVANGELISTA',
+  OBREIRO = 'OBREIRO',
+  MEMBRO = 'MEMBRO',
+}
 
 /**
  * ENTIDADE - Usuário
  * 
- * Responsabilidade: Armazenar informações de autenticação e autorização
+ * Estrutura completa para gestão de membros e obreiros
  * 
- * Fluxo de utilização:
- * 1. Usuário registado com email, password e churchId
- * 2. Atribuir roles baseado na função na igreja
- * 3. Ao fazer login, token JWT é gerado com roles e churchId
- * 4. Token é usado para autorizar requisições posteriores
- * 5. Audit logs registam quem fez cada ação
- * 
- * Campos importantes:
- * - churchId: Isolamento de dados por igreja
- * - roles: Array de papéis (um usuário pode ter múltiplos)
- * - isActive: Desativar sem deletar (soft delete)
+ * Seções:
+ * 1. Identificação Básica
+ * 2. Informação Espiritual/Ministerial
+ * 3. Contactos e Localização
+ * 4. Dados de Acesso ao Sistema
+ * 5. Responsabilidades Administrativas
+ * 6. Auditoria e Controlo
  */
 @Entity('users')
 export class User {
-  // Identificador único (UUID gerado automaticamente)
+  // ========================================================================
+  // 1️⃣ IDENTIFICAÇÃO BÁSICA
+  // ========================================================================
+  
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  // Nome do usuário
-  @Column()
-  name!: string;
+  @Column({ length: 200 })
+  nomeCompleto!: string;
 
-  // Email único (login)
-  @Column({ unique: true })
+  @Column({ length: 100, nullable: true })
+  apelido?: string;
+
+  @Column({ type: 'enum', enum: Sexo, nullable: true })
+  sexo?: Sexo;
+
+  @Column({ type: 'date', nullable: true })
+  dataNascimento?: Date;
+
+  @Column({ type: 'enum', enum: EstadoCivil, nullable: true })
+  estadoCivil?: EstadoCivil;
+
+  @Column({ length: 100, nullable: true })
+  nacionalidade?: string;
+
+  @Column({ length: 50, nullable: true })
+  documentoIdentidade?: string;
+
+  // ========================================================================
+  // 2️⃣ INFORMAÇÃO ESPIRITUAL / MINISTERIAL
+  // ========================================================================
+
+  @Column({ type: 'enum', enum: FuncaoMinisterial, default: FuncaoMinisterial.MEMBRO })
+  funcaoMinisterial!: FuncaoMinisterial;
+
+  @Column({ length: 200, nullable: true })
+  ministerio?: string;
+
+  @Column({ type: 'date', nullable: true })
+  dataConversao?: Date;
+
+  @Column({ type: 'date', nullable: true })
+  dataBatismo?: Date;
+
+  @Column({ length: 200, nullable: true })
+  igrejaLocal?: string;
+
+  @Column({type:'uuid', nullable: true })
+  liderDireto?: string;
+
+  @Column({ default: true })
+  ativoNoMinisterio!: boolean;
+
+  // ========================================================================
+  // 3️⃣ CONTACTOS E LOCALIZAÇÃO
+  // ========================================================================
+
+  @Column({ length: 20, nullable: true })
+  telefone?: string;
+
+  @Column({ unique: true, length: 200 })
   email!: string;
 
-  // Password (deve ser hasheada com bcrypt)
-  // TODO: Implementar hashing com bcrypt em AuthService
-  @Column()
-  password!: string;
+  @Column({ length: 300, nullable: true })
+  endereco?: string;
 
-  // ID da igreja (isolamento de dados)
-  // Cada usuário pertence a exatamente uma igreja
-  // Todas as queries filtram por este campo
+  @Column({ length: 100, nullable: true })
+  cidade?: string;
+
+  @Column({ length: 100, nullable: true })
+  provincia?: string;
+
+  // ========================================================================
+  // 4️⃣ DADOS DE ACESSO AO SISTEMA (Autenticação)
+  // ========================================================================
+
+  @Column({ unique: true, length: 100 })
+  username!: string;
+
+  @Column({ length: 255 })
+  passwordHash!: string;
+
+  @Column({ type: 'enum', enum: UserRole, array: true, default: [UserRole.VIEWER] })
+  roles!: UserRole[];
+
+  @Column('text', { array: true, default: [] })
+  permissoes!: string[];
+
+  @Column({ default: true })
+  ativo!: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  ultimoLogin?: Date;
+
+  // ========================================================================
+  // 5️⃣ RESPONSABILIDADES ADMINISTRATIVAS
+  // ========================================================================
+
   @Column('uuid')
   churchId!: string;
 
-  // Papéis/Roles do usuário (array)
-  // Exemplo: ['TREASURER', 'AUDITOR'] = tesoureiro e auditor
-  // Utilizados para autorizar ações (veja approval.service.ts)
-  @Column('text', { array: true })
-  roles!: UserRole[];
+  @Column({ length: 200, nullable: true })
+  departamento?: string;
 
-  // Flag para soft delete (desativar sem deletar do BD)
-  @Column({ default: true })
-  isActive!: boolean;
+  @Column({ type: 'int', default: 0 })
+  nivelAprovacao!: number;
 
-  // Timestamp: Quando foi criado
+  @Column({ default: false })
+  assinaDocumentos!: boolean;
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  limiteFinanceiro?: number;
+
+  // ========================================================================
+  // 6️⃣ AUDITORIA E CONTROLO
+  // ========================================================================
+
   @CreateDateColumn()
-  createdAt!: Date;
+  criadoEm!: Date;
 
-  // Timestamp: Última actualização
   @UpdateDateColumn()
-  updatedAt!: Date;
+  actualizadoEm!: Date;
+
+  @Column({type:'uuid', nullable: true })
+  criadoPor?: string;
+
+  @Column({ type: 'text', nullable: true })
+  observacoes?: string;
 }

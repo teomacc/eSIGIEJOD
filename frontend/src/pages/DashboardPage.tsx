@@ -36,7 +36,7 @@ import '@/styles/DashboardPage.css';
  */
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasRole } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -93,6 +93,11 @@ export default function DashboardPage() {
         <Link to="/requisitions">Requisições</Link>
         <Link to="/audit">Auditoria</Link>
         <Link to="/reports">Relatórios</Link>
+        {(hasRole('ADMIN') || hasRole('DIRECTOR') || hasRole('TREASURER')) && (
+          <Link to="/register" style={{ marginLeft: 'auto', fontWeight: 'bold' }}>
+            ➕ Registar Usuário
+          </Link>
+        )}
       </nav>
 
       {/* Metrics Cards */}

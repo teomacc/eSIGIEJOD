@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import LoginPage from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPageSimple';
 import DashboardPage from '@/pages/DashboardPage';
 import RequisitionsPage from '@/pages/RequisitionsPage';
 import AuditPage from '@/pages/AuditPage';
@@ -27,6 +28,7 @@ import '@/styles/globals.css';
  * 
  * Rotas:
  * - /login: LoginPage (pública)
+ * - /register: RegisterPage (protegida, apenas DIRECTOR/TREASURER)
  * - /: DashboardPage (protegida)
  * - /requisitions: RequisitionsPage (protegida)
  * - /audit: AuditPage (protegida, AUDITOR+)
@@ -56,6 +58,16 @@ export default function App() {
         <Routes>
           {/* Login - pública */}
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Registo - protegida (apenas DIRECTOR/TREASURER) */}
+          <Route
+            path="/register"
+            element={
+              <ProtectedRoute>
+                <RegisterPage />
+              </ProtectedRoute>
+            }
+          />
           
           {/* Dashboard - home protegida */}
           <Route

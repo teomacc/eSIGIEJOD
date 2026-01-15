@@ -104,8 +104,14 @@ export const api = {
   auth: {
     login: (email: string, password: string) =>
       apiClient.post('/auth/login', { email, password }),
-    register: (email: string, password: string, churchId: string) =>
-      apiClient.post('/auth/register', { email, password, churchId }),
+    register: (data: {
+      email: string;
+      password: string;
+      name: string;
+      churchId: string;
+      roles: string[];
+    }) =>
+      apiClient.post('/auth/register', data),
   },
 
   /**

@@ -36,6 +36,7 @@ interface User {
   churchId: string;
   roles: string[];
   isActive: boolean;
+  name?: string;
 }
 
 interface AuthContextType {
@@ -44,6 +45,7 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (userData: any) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   hasRole: (role: string) => boolean;
@@ -73,7 +75,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  * TODO: Implementar auto-logout ao expirar
  */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = localStorage.getItem('user');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
   const [token, setToken] = useState<string | null>(
     localStorage.getItem('token')
   );
@@ -102,24 +107,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
 
       try {
-        // TODO: Implementar chamada para API
-        // const response = await axios.post('/auth/login', { email, password });
-        // const { access_token, user } = response.data;
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
 
-        // Por enquanto, mock para demonstrar fluxo
-        const mockUser: User = {
-          id: 'user-1',
-          email,
-          churchId: 'church-1',
-          roles: ['PASTOR'],
-          isActive: true,
-        };
-        const mockToken = 'mock-jwt-token-' + Date.now();
+        if (!response.ok) {
+          throw new Error('Erro ao fazer login');
+        }
 
-        setUser(mockUser);
-        setToken(mockToken);
-        localStorage.setItem('token', mockToken);
-        localStorage.setItem('user', JSON.stringify(mockUser));
+        const { access_token, user } = await response.json();
+
+        setUser(user);
+        setToken(access_token);
+        localStorage.setItem('token', access_token);
+        localStorage.setItem('user', JSON.stringify(user));
       } catch (err: any) {
         setError(err.message || 'Erro ao fazer login');
         setUser(null);
@@ -129,6 +134,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     []
+  );
+
+  /**
+   * REGISTER - Registar novo usuário
+   * 
+   * Fluxo:
+   * 1. Chamar API POST /auth/register
+   * 2. Apenas DIRECTOR e TREASURER podem registar
+   * 3. Se sucesso: Login automático do novo usuário
+   * 4. Se erro: Mostrar mensagem
+   */
+  const register = useCallback(
+    async (userData: any) => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(userData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Erro ao registar usuário');
+        }
+
+        const newUser = await response.json();
+        setError(null);
+        // Não fazer login automático, apenas registar
+      } catch (err: any) {
+        setError(err.message || 'Erro ao registar usuário');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [token]
   );
 
   /**
@@ -175,6 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         error,
         login,
+        register,
         logout,
         isAuthenticated,
         hasRole,

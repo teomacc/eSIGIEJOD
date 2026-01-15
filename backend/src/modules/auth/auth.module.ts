@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
+import { DatabaseSeeder } from './database.seeder';
 
 /**
  * MÓDULO DE AUTENTICAÇÃO (AuthModule)
@@ -40,6 +41,7 @@ import { LocalStrategy } from './strategies/local.strategy';
     AuthService,
     JwtStrategy, // Valida JWT tokens
     LocalStrategy, // Valida email + password
+    DatabaseSeeder, // Seed automático de admin padrão
   ],
   // Exportar AuthService para ser utilizado por outros módulos
   exports: [AuthService],

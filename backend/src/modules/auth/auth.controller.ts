@@ -1,5 +1,7 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 /**
  * CONTROLADOR DE AUTENTICAÇÃO (AuthController)
@@ -55,21 +57,48 @@ export class AuthController {
   }
 
   /**
-   * REGISTAR - Endpoint para registar novo usuário (TODO)
+   * REGISTAR - Endpoint para registar novo usuário
    * 
    * POST /auth/register
-   * Body: { email, password, name, churchId }
+   * Authorization: Bearer <jwt_token>
    * 
-   * TODO: Implementar validações:
-   * 1. Email único
-   * 2. Password forte (mínimo 8 caracteres, uppercase, números)
-   * 3. churchId válido
-   * 4. Enviar email de confirmação
-   * 5. Hashear password com bcrypt
+   * Body: {
+   *   "email": "newtreasurier@church.com",
+   *   "password": "SecurePass123",
+   *   "name": "João Silva",
+   *   "churchId": "uuid-da-igreja",
+   *   "roles": ["TREASURER"]
+   * }
+   * 
+   * Resposta (201 Created):
+   * {
+   *   "id": "uuid...",
+   *   "email": "newtreasurier@church.com",
+   *   "name": "João Silva",
+   *   "churchId": "uuid...",
+   *   "roles": ["TREASURER"],
+   *   "message": "Usuário registado com sucesso"
+   * }
+   * 
+   * Erros possíveis:
+   * - 401 Unauthorized: Sem token JWT
+   * - 403 Forbidden: Usuário não é DIRECTOR/TREASURER
+   * - 403 Forbidden: Tentando registar em outra igreja
+   * - 409 Conflict: Email já existe
+   * - 400 Bad Request: Password fraca
+   * 
+   * Restrições de segurança:
+   * 1. Apenas DIRECTOR e TREASURER podem usar este endpoint
+   * 2. Só podem registar usuários da sua própria igreja
+   * 3. Email deve ser único
+   * 4. Password deve ser forte (8+ caracteres, 1 maiúscula, 1 número)
    */
   @Post('register')
-  async register(@Body() userData: any) {
-    // TODO: Implementar registo de novo usuário
-    throw new Error('Registo ainda não implementado');
+  @UseGuards(JwtAuthGuard)
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Request() req: any,
+  ) {
+    return this.authService.register(registerDto, req.user);
   }
 }
