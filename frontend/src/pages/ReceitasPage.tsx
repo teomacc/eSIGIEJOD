@@ -56,7 +56,11 @@ const weekdayLabel = (value: string) => WEEKDAYS.find((w) => w.value === value)?
 const revenueTypeLabel = (value: string) => REVENUE_TYPES.find((item) => item.value === value)?.label ?? value;
 
 const formatCurrency = (value: number) =>
-  value.toLocaleString('pt-MZ', { style: 'currency', currency: 'MZN' });
+  Number.isFinite(value)
+    ? value.toLocaleString('pt-MZ', { style: 'currency', currency: 'MZN' })
+    : '--';
+
+const sanitizeNumberInput = (value: string) => value.replace(',', '.');
 
 export default function ReceitasPage() {
   const navigate = useNavigate();
@@ -85,13 +89,33 @@ export default function ReceitasPage() {
   }, [distributions]);
 
   const totalValue = Number(form.totalAmount || 0);
-  const difference = Number((totalValue - totalAllocated).toFixed(2));
+  const remainder = Number((totalValue - totalAllocated).toFixed(2));
+  const isBalanced = Math.abs(remainder) < 0.01;
+  const hasPositiveAmounts = distributions.length > 0 && distributions.every((item) => Number(item.amount) > 0);
 
-  const canSubmit =
-    totalValue > 0 &&
-    distributions.length > 0 &&
-    Math.abs(difference) < 0.01 &&
-    distributions.every((item) => Number(item.amount) > 0);
+  const canSubmit = totalValue > 0 && distributions.length > 0 && isBalanced && hasPositiveAmounts;
+
+  let submitDisabledReason = '';
+  if (totalValue <= 0) {
+    submitDisabledReason = 'Informe o valor total recebido.';
+  } else if (!distributions.length) {
+    submitDisabledReason = 'Adicione pelo menos um fundo.';
+  } else if (!hasPositiveAmounts) {
+    submitDisabledReason = 'Preencha os valores para todos os fundos.';
+  } else if (!isBalanced) {
+    submitDisabledReason = remainder > 0
+      ? 'Distribua o restante do valor.'
+      : 'Reduza os valores alocados para eliminar o excedente.';
+  }
+
+  const remainderAbs = Math.abs(remainder);
+  const remainderLabel = formatCurrency(remainderAbs);
+  const remainderStatus = remainder > 0
+    ? 'Falta distribuir'
+    : remainder < 0
+      ? 'Excedente distribuído'
+      : 'Distribuição equilibrada';
+  const remainderClass = remainder > 0 ? 'pending' : remainder < 0 ? 'alert' : 'ok';
 
   const loadFunds = async () => {
     setLoading(true);
@@ -113,7 +137,7 @@ export default function ReceitasPage() {
 
   useEffect(() => {
     loadFunds();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  
   }, []);
 
   useEffect(() => {
@@ -126,13 +150,28 @@ export default function ReceitasPage() {
       setForm((prev) => ({ ...prev, date: value, weekday }));
       return;
     }
+    if (field === 'totalAmount') {
+      const sanitized = sanitizeNumberInput(value);
+      setForm((prev) => ({ ...prev, totalAmount: sanitized }));
+      setDistributions((prev) => {
+        if (!prev.length) {
+          return prev;
+        }
+        if (prev.length === 1) {
+          return [{ ...prev[0], amount: sanitized }];
+        }
+        return prev;
+      });
+      return;
+    }
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleDistributionChange = (index: number, field: keyof DistributionItem, value: string) => {
     setDistributions((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
+      const sanitized = field === 'amount' ? sanitizeNumberInput(value) : value;
+      next[index] = { ...next[index], [field]: sanitized };
       return next;
     });
   };
@@ -141,11 +180,30 @@ export default function ReceitasPage() {
     setDistributions((prev) => prev.filter((_, position) => position !== index));
   };
 
+  const handleFillRemaining = (index: number) => {
+    if (remainder <= 0) {
+      return;
+    }
+    setDistributions((prev) => {
+      const next = [...prev];
+      const current = Number(next[index].amount || 0);
+      const updated = (current + Math.max(remainder, 0)).toFixed(2);
+      next[index] = { ...next[index], amount: updated };
+      return next;
+    });
+  };
+
   const handleAddDistribution = () => {
     if (!funds.length) return;
     const defaultFund = funds.find((fund) => !distributions.some((item) => item.fundId === fund.id)) || funds[0];
-    const remaining = Math.max(difference, 0);
-    setDistributions((prev) => [...prev, { fundId: defaultFund.id, amount: remaining ? remaining.toString() : '' }]);
+    const remainderValue = Math.max(remainder, 0);
+    setDistributions((prev) => [
+      ...prev,
+      {
+        fundId: defaultFund.id,
+        amount: remainderValue ? remainderValue.toFixed(2) : '',
+      },
+    ]);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -272,228 +330,290 @@ export default function ReceitasPage() {
           </div>
         </header>
 
-        <section className="receitas-card">
-          <div className="receitas-card-header">
-            <div>
-              <h2>Nova Receita</h2>
-              <p>Registe o culto, total recebido e distribuição por fundos.</p>
-            </div>
-          </div>
-          <form className="receitas-form" onSubmit={handleSubmit}>
-            <div className="form-grid">
-              <label>
-                Tipo de Receita
-                <select
-                  value={form.type}
-                  onChange={(event) => handleFormChange('type', event.target.value)}
-                >
-                  {REVENUE_TYPES.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+        <form className="receitas-form" onSubmit={handleSubmit}>
+          <section className="receitas-grid">
+            <div className="receitas-left">
+              <div className="receitas-card">
+                <div className="receitas-card-header">
+                  <div>
+                    <h2>Dados da Receita</h2>
+                    <p>Classifique a entrada e informe o valor total recebido.</p>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <label>
+                    Tipo de Receita
+                    <select
+                      value={form.type}
+                      onChange={(event) => handleFormChange('type', event.target.value)}
+                    >
+                      {REVENUE_TYPES.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <label>
-                Valor Total (MTn)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.totalAmount}
-                  onChange={(event) => handleFormChange('totalAmount', event.target.value)}
-                  required
-                />
-              </label>
+                  <label>
+                    Valor Total (MTn)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.totalAmount}
+                      onChange={(event) => handleFormChange('totalAmount', event.target.value)}
+                      required
+                    />
+                  </label>
 
-              <label>
-                Forma de Entrada
-                <select
-                  value={form.paymentMethod}
-                  onChange={(event) => handleFormChange('paymentMethod', event.target.value)}
-                >
-                  {PAYMENT_METHODS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <label>
+                    Forma de Entrada
+                    <select
+                      value={form.paymentMethod}
+                      onChange={(event) => handleFormChange('paymentMethod', event.target.value)}
+                    >
+                      {PAYMENT_METHODS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <label>
-                Data do Culto
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={(event) => handleFormChange('date', event.target.value)}
-                  required
-                />
-              </label>
-
-              <label>
-                Dia da Semana
-                <select
-                  value={form.weekday}
-                  onChange={(event) => handleFormChange('weekday', event.target.value)}
-                >
-                  {WEEKDAYS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Tipo de Culto
-                <select
-                  value={form.worshipType}
-                  onChange={(event) => handleFormChange('worshipType', event.target.value)}
-                >
-                  {WORSHIP_TYPES.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Local
-                <input
-                  type="text"
-                  value={form.location}
-                  onChange={(event) => handleFormChange('location', event.target.value)}
-                  placeholder="Igreja local, campo, monte..."
-                />
-              </label>
-
-              <label>
-                Observações do Culto
-                <textarea
-                  value={form.worshipNotes}
-                  onChange={(event) => handleFormChange('worshipNotes', event.target.value)}
-                  rows={3}
-                  placeholder="Notas específicas do culto"
-                />
-              </label>
-
-              <label className="full-width">
-                Observações da Receita
-                <textarea
-                  value={form.notes}
-                  onChange={(event) => handleFormChange('notes', event.target.value)}
-                  rows={3}
-                  placeholder="Detalhes adicionais sobre a receita"
-                />
-              </label>
-            </div>
-
-            <div className="distribution-header">
-              <h3>Distribuição por Fundos</h3>
-              <button
-                type="button"
-                className="btn-add"
-                onClick={handleAddDistribution}
-                disabled={!funds.length}
-              >
-                Adicionar Fundo
-              </button>
-            </div>
-
-            <div className="distribution-table">
-              <div className="table-header">
-                <span>Fundo</span>
-                <span>Valor Alocado (MTn)</span>
-                <span></span>
+                  <label className="full-width">
+                    Observações da Receita
+                    <textarea
+                      value={form.notes}
+                      onChange={(event) => handleFormChange('notes', event.target.value)}
+                      rows={3}
+                      placeholder="Detalhes adicionais sobre a receita"
+                    />
+                  </label>
+                </div>
               </div>
-              {distributions.map((item, index) => (
-                <div key={`distribution-${index}`} className="table-row">
-                  <select
-                    value={item.fundId}
-                    onChange={(event) => handleDistributionChange(index, 'fundId', event.target.value)}
-                  >
-                    {funds.map((fund) => (
-                      <option key={fund.id} value={fund.id}>
-                        {fund.type.replace('FUNDO_', '').replace('_', ' ')}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.amount}
-                    onChange={(event) => handleDistributionChange(index, 'amount', event.target.value)}
-                    required
-                  />
+
+              <div className="receitas-card">
+                <div className="receitas-card-header">
+                  <div>
+                    <h2>Contexto do Culto</h2>
+                    <p>Ligue a receita ao culto em que foi levantada.</p>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <label>
+                    Data do Culto
+                    <input
+                      type="date"
+                      value={form.date}
+                      onChange={(event) => handleFormChange('date', event.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Dia da Semana
+                    <select
+                      value={form.weekday}
+                      onChange={(event) => handleFormChange('weekday', event.target.value)}
+                    >
+                      {WEEKDAYS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Tipo de Culto
+                    <select
+                      value={form.worshipType}
+                      onChange={(event) => handleFormChange('worshipType', event.target.value)}
+                    >
+                      {WORSHIP_TYPES.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Local
+                    <input
+                      type="text"
+                      value={form.location}
+                      onChange={(event) => handleFormChange('location', event.target.value)}
+                      placeholder="Igreja local, campo, monte..."
+                    />
+                  </label>
+
+                  <label className="full-width">
+                    Observações do Culto
+                    <textarea
+                      value={form.worshipNotes}
+                      onChange={(event) => handleFormChange('worshipNotes', event.target.value)}
+                      rows={3}
+                      placeholder="Notas específicas do culto"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="receitas-card">
+                <div className="receitas-card-header">
+                  <div>
+                    <h2>Distribuição por Fundos</h2>
+                    <p>Garanta que a soma distribuída corresponde ao valor total.</p>
+                  </div>
                   <button
                     type="button"
-                    className="btn-remove"
-                    onClick={() => handleRemoveDistribution(index)}
-                    disabled={distributions.length === 1}
+                    className="btn-add"
+                    onClick={handleAddDistribution}
+                    disabled={!funds.length}
                   >
-                    Remover
+                    Adicionar Fundo
                   </button>
                 </div>
-              ))}
-            </div>
 
-            <div className="distribution-summary">
-              <p>Total distribuído: <strong>{formatCurrency(totalAllocated)}</strong></p>
-              <p>Diferença: <strong className={Math.abs(difference) < 0.01 ? 'ok' : 'alert'}>{formatCurrency(difference)}</strong></p>
-            </div>
+                {loading && !funds.length && (
+                  <p className="helper-text">A carregar fundos disponíveis...</p>
+                )}
 
-            {feedback && (
-              <div className={`feedback ${feedback.type}`}>
-                {feedback.message}
-              </div>
-            )}
+                {!loading && !funds.length && (
+                  <p className="helper-text warning">Nenhum fundo activo encontrado.</p>
+                )}
 
-            <div className="form-actions">
-              <button type="submit" className="btn-primary" disabled={!canSubmit || submitting}>
-                {submitting ? 'A guardar...' : 'Guardar Receita'}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section className="receitas-history">
-          <h2>Histórico Diário ({form.date})</h2>
-          {dailyRevenues.length === 0 ? (
-            <p>Nenhuma receita registada para esta data.</p>
-          ) : (
-            <div className="history-table">
-              <div className="history-header">
-                <span>Tipo</span>
-                <span>Forma</span>
-                <span>Valor</span>
-                <span>Distribuição</span>
-                <span>Registado</span>
-              </div>
-              {dailyRevenues.map((revenue) => (
-                <div key={revenue.id} className="history-row">
-                  <span>{revenueTypeLabel(revenue.type)}</span>
-                  <span>{PAYMENT_METHODS.find((method) => method.value === revenue.paymentMethod)?.label ?? revenue.paymentMethod}</span>
-                  <span>{formatCurrency(Number(revenue.totalAmount))}</span>
-                  <span>
-                    {revenue.allocations?.map((allocation) => (
-                      <small key={allocation.id}>
-                        {allocation.fund.type.replace('FUNDO_', '').replace('_', ' ')}: {formatCurrency(Number(allocation.amount))}
-                      </small>
-                    ))}
-                  </span>
-                  <span>
-                    {revenue.worship?.serviceDate
-                      ? `${weekdayLabel(dateToWeekday(revenue.worship.serviceDate))} (${revenue.worship.serviceDate.slice(0, 10)})`
-                      : new Date(revenue.createdAt).toLocaleString()}
-                  </span>
+                <div className="distribution-table">
+                  <div className="table-header">
+                    <span>Fundo</span>
+                    <span>Valor Alocado (MTn)</span>
+                    <span></span>
+                  </div>
+                  {distributions.map((item, index) => (
+                    <div key={`distribution-${index}`} className="table-row">
+                      <select
+                        aria-label={`Fundo ${index + 1}`}
+                        value={item.fundId}
+                        onChange={(event) => handleDistributionChange(index, 'fundId', event.target.value)}
+                      >
+                        {funds.map((fund) => (
+                          <option key={fund.id} value={fund.id}>
+                            {fund.type.replace('FUNDO_', '').replace('_', ' ')} · {formatCurrency(Number(fund.balance))}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Valor a alocar"
+                        aria-label={`Valor alocado ao fundo ${index + 1}`}
+                        value={item.amount}
+                        onChange={(event) => handleDistributionChange(index, 'amount', event.target.value)}
+                        required
+                      />
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="btn-link"
+                          onClick={() => handleFillRemaining(index)}
+                          disabled={remainder <= 0}
+                        >
+                          Usar restante
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-remove"
+                          onClick={() => handleRemoveDistribution(index)}
+                          disabled={distributions.length === 1}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-          )}
-        </section>
+
+            <div className="receitas-right">
+              <div className="receitas-card receitas-summary">
+                <div className="receitas-card-header">
+                  <div>
+                    <h2>Resumo</h2>
+                    <p>Revise os totais antes de guardar a receita.</p>
+                  </div>
+                </div>
+                <div className="summary-metrics">
+                  <div className="summary-chip">
+                    <span>Total reportado</span>
+                    <strong>{formatCurrency(totalValue)}</strong>
+                  </div>
+                  <div className="summary-chip">
+                    <span>Total distribuído</span>
+                    <strong>{formatCurrency(totalAllocated)}</strong>
+                  </div>
+                  <div className={`summary-chip ${remainderClass}`}>
+                    <span>{remainderStatus}</span>
+                    <strong>{remainderLabel}</strong>
+                  </div>
+                </div>
+
+                {feedback && (
+                  <div className={`feedback ${feedback.type}`}>
+                    {feedback.message}
+                  </div>
+                )}
+
+                {!canSubmit && submitDisabledReason && (
+                  <p className="helper-text warning">{submitDisabledReason}</p>
+                )}
+
+                <button type="submit" className="btn-primary" disabled={!canSubmit || submitting}>
+                  {submitting ? 'A guardar...' : 'Guardar Receita'}
+                </button>
+              </div>
+
+              <div className="receitas-card history-card">
+                <h2>Histórico Diário ({form.date})</h2>
+                {dailyRevenues.length === 0 ? (
+                  <p className="helper-text">Nenhuma receita registada para esta data.</p>
+                ) : (
+                  <div className="history-table">
+                    <div className="history-header">
+                      <span>Tipo</span>
+                      <span>Forma</span>
+                      <span>Valor</span>
+                      <span>Distribuição</span>
+                      <span>Registado</span>
+                    </div>
+                    {dailyRevenues.map((revenue) => (
+                      <div key={revenue.id} className="history-row">
+                        <span>{revenueTypeLabel(revenue.type)}</span>
+                        <span>{PAYMENT_METHODS.find((method) => method.value === revenue.paymentMethod)?.label ?? revenue.paymentMethod}</span>
+                        <span>{formatCurrency(Number(revenue.totalAmount))}</span>
+                        <span>
+                          {revenue.allocations?.map((allocation) => (
+                            <small key={allocation.id}>
+                              {allocation.fund.type.replace('FUNDO_', '').replace('_', ' ')}: {formatCurrency(Number(allocation.amount))}
+                            </small>
+                          ))}
+                        </span>
+                        <span>
+                          {revenue.worship?.serviceDate
+                            ? `${weekdayLabel(dateToWeekday(revenue.worship.serviceDate))} (${revenue.worship.serviceDate.slice(0, 10)})`
+                            : new Date(revenue.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </form>
       </main>
     </div>
   );
