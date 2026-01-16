@@ -24,6 +24,9 @@ async function bootstrap() {
   // Obter serviço de configuração
   const configService = app.get(ConfigService);
 
+  // Prefixo global para todas as rotas da API
+  app.setGlobalPrefix('api');
+
   // Pipe de validação global
   // Valida automaticamente DTOs em todas as requisições
   // Exemplo: @IsEmail(), @IsNumber(), @IsUUID() definidos na classe DTO
