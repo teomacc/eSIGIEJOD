@@ -106,95 +106,57 @@ export type RequisitionMagnitude = typeof RequisitionMagnitude[keyof typeof Requ
  */
 @Entity('requisitions')
 export class Requisition {
-  // ID único (UUID)
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  // Código de requisição (UUID, imutável)
-  // Gerado no momento da criação
-  // Usado para rastrear requisição de forma legível
-  @Column('uuid', { unique: true })
-  code!: string;
-
-  // ID da iglesia (isolamento de dados)
-  @Column('uuid')
+  @Column()
   churchId!: string;
 
-  // ID do fundo afectado
-  // Esta requisição vai debitar este fundo se aprovada
-  @Column('uuid')
+  @Column()
   fundId!: string;
 
-  // ID do usuário que criou a requisição
-  // Permite auditoria e rastreamento
-  @Column('uuid')
+  @Column()
   requestedBy!: string;
 
-  // Categoria da despesa
-  // Uma das 16 categorias definidas acima
-  @Column('varchar')
+  @Column({ nullable: true })
+  approvedBy!: string;
+
+  @Column({
+    type: 'enum',
+    enum: ExpenseCategory,
+  })
   category!: ExpenseCategory;
 
-  // Valor SOLICITADO (valor original pedido)
-  // Decimal(15,2) = até 999.999.999.999,99
-  // O aprovador pode reduzir este valor
-  @Column({ type: 'decimal', precision: 15, scale: 2 })
+  @Column('decimal', { precision: 10, scale: 2 })
   requestedAmount!: number;
 
-  // Valor APROVADO (pode ser diferente do solicitado)
-  // Null até ser aprovada
-  // Se null e estado = APPROVED, assume requestedAmount
-  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
-  approvedAmount?: number;
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  approvedAmount!: number;
 
-  // Magnitude da requisição
-  // Calculada automaticamente ao criar requisição
-  // Baseada em requestedAmount
-  // PEQUENA (≤5.000) → MEDIA (≤20.000) → GRANDE (≤50.000) → CRITICA (>50.000)
-  @Column('varchar')
+  @Column({
+    type: 'enum',
+    enum: RequisitionMagnitude,
+  })
   magnitude!: RequisitionMagnitude;
 
-  // Estado atual da requisição
-  // PENDENTE → EM_ANALISE → APROVADA/REJEITADA → EXECUTADA/CANCELADA
-  @Column('varchar', { default: RequisitionState.PENDING })
+  @Column({
+    type: 'enum',
+    enum: RequisitionState,
+    default: RequisitionState.PENDING,
+  })
   state!: RequisitionState;
 
-  // Justificação da despesa (obrigatória)
-  // Por que esta despesa é necessária?
-  // Exemplo: "Alimentos para 100 pessoas na conferência de missionários"
   @Column('text')
   justification!: string;
 
-  // Anexos (opcional)
-  // JSON array de caminhos de ficheiros
-  // Exemplo: '["uploads/orcamento.pdf", "uploads/foto_evento.jpg"]'
-  @Column('text', { nullable: true })
-  attachments?: string;
-
-  // ID do usuário que aprovou/rejeitou
-  // Null se ainda não foi aprovada
-  // Importante para auditoria
-  @Column('uuid', { nullable: true })
-  approvedBy?: string;
-
-  // Motivo da rejeição (se rejeitada)
-  // Null se não rejeitada
-  // Importante para usuário entender por que foi rejeitada
-  @Column('text', { nullable: true })
-  rejectionReason?: string;
-
-  // Timestamp: Quando foi criada
   @CreateDateColumn()
-  requestedAt!: Date;
+  createdAt!: Date;
 
-  // Timestamp: Quando foi aprovada/rejeitada
-  // Null se ainda não foi decidida
-  @Column({ type: 'timestamp', nullable: true })
-  approvedAt?: Date;
-
-  // Timestamp: Última actualização de estado
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  executedAt!: Date;
 
   /**
    * MÉTODOS DE LÓGICA DE NEGÓCIO

@@ -4,6 +4,8 @@ import { Income } from './entities/income.entity';
 import { Fund } from './entities/fund.entity';
 import { FinancesService } from './finances.service';
 import { FinancesController } from './finances.controller';
+import { FinancesSeeder } from './finances.seeder';
+import { User } from '../auth/entities/user.entity';
 
 /**
  * MÓDULO DE FINANÇAS (FinancesModule)
@@ -31,10 +33,10 @@ import { FinancesController } from './finances.controller';
 @Module({
   imports: [
     // Registar entities para TypeORM gerenciar
-    TypeOrmModule.forFeature([Income, Fund]),
+    TypeOrmModule.forFeature([Income, Fund, User]),
   ],
   controllers: [FinancesController],
-  providers: [FinancesService],
+  providers: [FinancesService, FinancesSeeder],
   // Exportar FinancesService para ser utilizado por outros módulos
   exports: [FinancesService],
 })

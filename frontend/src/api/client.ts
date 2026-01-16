@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 /**
@@ -30,8 +31,11 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
  * - Cache de requisições GET
  */
 
-// URL base da API
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+// URL base da API (usa env do Vite e permite fallback manual)
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (window as { __API_BASE_URL?: string }).__API_BASE_URL ||
+  'http://localhost:3000/api';
 
 // Criar instância Axios
 export const apiClient: AxiosInstance = axios.create({

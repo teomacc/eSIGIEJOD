@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/api/client';
+import { apiClient } from '@/api/client';
 import { Link, useNavigate } from 'react-router-dom';
 import '@/styles/DashboardPage.css';
 
@@ -20,37 +20,24 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Mock data - TODO: substituir por API real
-    setData({
-      receitaMes: 250000,
-      receitaVariacao: 12, // percentagem
-      despesasMes: 180000,
-      despesasVariacao: -5,
-      requisiçõesPendentes: 5,
-      requisiçõesUrgentes: 2,
-      fundosActivos: 2,
-      fundos: [
-        { 
-          nome: 'GERAL', 
-          entradas: 800000, 
-          saidas: 300000, 
-          saldo: 500000 
-        },
-        { 
-          nome: 'CONSTRUÇÃO', 
-          entradas: 200000, 
-          saidas: 50000, 
-          saldo: 150000 
-        },
-      ],
-      alertas: [
-        { tipo: 'warning', mensagem: 'Fundo CONSTRUÇÃO abaixo de 200 000 MTn' },
-        { tipo: 'warning', mensagem: '2 Requisições aguardam aprovação há mais de 7 dias' },
-      ]
-    });
-    setLoading(false);
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await apiClient.get('/dashboard/metrics');
+        setData(response.data);
+      } catch (err: any) {
+        console.error('Erro ao carregar dashboard:', err);
+        setError(err.response?.data?.message || 'Erro ao carregar dados do dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
   }, []);
 
   if (loading) {
@@ -60,6 +47,22 @@ export default function DashboardPage() {
         <p>Carregando...</p>
       </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-error">
+        <div className="error-card">
+          <h2>❌ Erro ao Carregar Dashboard</h2>
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()}>Tentar Novamente</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return null;
   }
 
   return (
@@ -150,10 +153,10 @@ export default function DashboardPage() {
             </div>
             <div className="card-body">
               <p className="card-value">
-                {data.receitaMes.toLocaleString('pt-MZ')} MTn
+                {data.receita.total.toLocaleString('pt-MZ')} MTn
               </p>
-              <p className="card-variation positive">
-                ⬆️ +{data.receitaVariacao}% em relação ao mês anterior
+              <p className={`card-variation ${data.receita.variacao >= 0 ? 'positive' : 'negative'}`}>
+                {data.receita.variacao >= 0 ? '⬆️ +' : '⬇️ '}{Math.abs(data.receita.variacao)}% em relação ao mês anterior
               </p>
             </div>
           </div>
@@ -164,10 +167,10 @@ export default function DashboardPage() {
             </div>
             <div className="card-body">
               <p className="card-value">
-                {data.despesasMes.toLocaleString('pt-MZ')} MTn
+                {data.despesas.total.toLocaleString('pt-MZ')} MTn
               </p>
-              <p className="card-variation negative">
-                ⬇️ {data.despesasVariacao}% comparado ao mês anterior
+              <p className={`card-variation ${data.despesas.variacao >= 0 ? 'positive' : 'negative'}`}>
+                {data.despesas.variacao >= 0 ? '⬆️ +' : '⬇️ '}{Math.abs(data.despesas.variacao)}% comparado ao mês anterior
               </p>
             </div>
           </div>
@@ -177,10 +180,10 @@ export default function DashboardPage() {
               <h3>⏳ Requisições Pendentes</h3>
             </div>
             <div className="card-body">
-              <p className="card-value">{data.requisiçõesPendentes}</p>
+              <p className="card-value">{data.requisicoes.total}</p>
               <p className="card-details">
-                <span className="badge badge-urgent">🔴 {data.requisiçõesUrgentes} urgentes</span>
-                <span className="badge badge-normal">🟡 {data.requisiçõesPendentes - data.requisiçõesUrgentes} normais</span>
+                <span className="badge badge-urgent">🔴 {data.requisicoes.urgentes} urgentes</span>
+                <span className="badge badge-normal">🟡 {data.requisicoes.normais} normais</span>
               </p>
             </div>
           </div>
@@ -190,10 +193,10 @@ export default function DashboardPage() {
               <h3>🏦 Fundos Activos</h3>
             </div>
             <div className="card-body">
-              <p className="card-value">{data.fundosActivos} Fundos</p>
+              <p className="card-value">{data.fundos.ativos} Fundos</p>
               <div className="card-list">
-                {data.fundos.map((fundo: any) => (
-                  <span key={fundo.nome} className="fund-badge">{fundo.nome}</span>
+                {data.fundos.balanco.map((fundo: any) => (
+                  <span key={fundo.id} className="fund-badge">{fundo.nome}</span>
                 ))}
               </div>
             </div>
@@ -214,8 +217,8 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.fundos.map((fundo: any) => (
-                  <tr key={fundo.nome}>
+                {data.fundos.balanco.map((fundo: any) => (
+                  <tr key={fundo.id}>
                     <td className="fund-name">{fundo.nome}</td>
                     <td className="fund-income">
                       {fundo.entradas.toLocaleString('pt-MZ')} MTn

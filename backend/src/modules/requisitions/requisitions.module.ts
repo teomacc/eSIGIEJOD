@@ -4,6 +4,9 @@ import { Requisition } from './entities/requisition.entity';
 import { RequisitionsService } from './requisitions.service';
 import { ApprovalModule } from '../approval/approval.module';
 import { AuditModule } from '../audit/audit.module';
+import { RequisitionsSeeder } from './requisitions.seeder';
+import { User } from '../auth/entities/user.entity';
+import { Fund } from '../finances/entities/fund.entity';
 
 /**
  * MÓDULO DE REQUISIÇÕES (RequisitionsModule)
@@ -38,13 +41,13 @@ import { AuditModule } from '../audit/audit.module';
 @Module({
   imports: [
     // Registar Requisition entity
-    TypeOrmModule.forFeature([Requisition]),
+    TypeOrmModule.forFeature([Requisition, User, Fund]),
     // Importar ApprovalModule para calcular nível de aprovação
     ApprovalModule,
     // Importar AuditModule para registar ações
     AuditModule,
   ],
-  providers: [RequisitionsService],
+  providers: [RequisitionsService, RequisitionsSeeder],
   exports: [RequisitionsService],
 })
 export class RequisitionsModule {}

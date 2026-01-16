@@ -9,6 +9,7 @@ import { RequisitionsModule } from './modules/requisitions/requisitions.module';
 import { ApprovalModule } from './modules/approval/approval.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 /**
  * MÓDULO RAIZ DA APLICAÇÃO (AppModule)
@@ -65,6 +66,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     ApprovalModule,
     AuditModule,
     ReportsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}
