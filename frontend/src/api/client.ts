@@ -139,6 +139,10 @@ export const api = {
       observations?: string;
       attachments?: string[];
     }) => apiClient.post('/finances/income', data),
+    listFunds: () => apiClient.get('/finances/funds'),
+    recordRevenue: (payload: any) => apiClient.post('/finances/revenues', payload),
+    getDailyRevenues: (date: string) =>
+      apiClient.get('/finances/revenues/daily', { params: { date } }),
   },
 
   /**

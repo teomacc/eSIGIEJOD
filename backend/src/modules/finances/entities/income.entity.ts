@@ -1,4 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, JoinColumn, ManyToOne } from 'typeorm';
+import { Revenue, PaymentMethod } from './revenue.entity';
+import { Worship } from './worship.entity';
 
 /**
  * ENUM - Tipos de Entrada de Dinheiro
@@ -15,13 +17,19 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeor
  */
 export const IncomeType = {
   TITHE: 'DIZIMO',
-  OFFERING: 'OFERTA_NORMAL',
+  OFFERING: 'OFERTA',
+  OFFERING_LEGACY: 'OFERTA_NORMAL',
   SPECIAL_OFFERING: 'OFERTA_ESPECIAL',
   DESIGNATED_OFFERING: 'OFERTA_DIRECCIONADA',
   MONTHLY_CONTRIBUTION: 'CONTRIBUICAO_MENSAL',
   EXTERNAL_DONATION: 'DONATIVO_EXTERNO',
   INTER_CHURCH_TRANSFER: 'TRANSFERENCIA_IGREJAS',
   AUTHORIZED_ADJUSTMENT: 'AJUSTE_AUTORIZADO',
+  SPECIAL_CONTRIBUTION: 'CONTRIBUICAO_ESPECIAL',
+  MISSIONARY_OFFERING: 'OFERTA_MISSIONARIA',
+  CONSTRUCTION_OFFERING: 'OFERTA_CONSTRUCAO',
+  SPECIAL_CAMPAIGN: 'CAMPANHA_ESPECIAL',
+  TAFULA: 'TAFULA',
 };
 
 export type IncomeType = typeof IncomeType[keyof typeof IncomeType];
@@ -71,6 +79,20 @@ export class Income {
   @Column('uuid')
   fundId!: string;
 
+  @Column('uuid', { nullable: true })
+  revenueId?: string;
+
+  @ManyToOne(() => Revenue, { nullable: true })
+  @JoinColumn({ name: 'revenueId' })
+  revenue?: Revenue;
+
+  @Column('uuid', { nullable: true })
+  worshipId?: string;
+
+  @ManyToOne(() => Worship, { nullable: true })
+  @JoinColumn({ name: 'worshipId' })
+  worship?: Worship;
+
   // ID do usuário que registou (responsabilidade)
   // Permite auditar quem fez cada ação
   @Column('uuid')
@@ -80,6 +102,9 @@ export class Income {
   // Exemplo: DIZIMO, OFERTA_NORMAL, DONATIVO_EXTERNO
   @Column('varchar')
   type!: IncomeType;
+
+  @Column({ type: 'varchar', nullable: true })
+  paymentMethod?: PaymentMethod;
 
   // Montante recebido
   // Tipo: decimal(15, 2) = até 999.999.999.999,99

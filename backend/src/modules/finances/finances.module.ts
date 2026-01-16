@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Income } from './entities/income.entity';
 import { Fund } from './entities/fund.entity';
+import { Worship } from './entities/worship.entity';
+import { Revenue } from './entities/revenue.entity';
+import { RevenueFund } from './entities/revenue-fund.entity';
+import { AuditModule } from '../audit/audit.module';
 import { FinancesService } from './finances.service';
 import { FinancesController } from './finances.controller';
 import { FinancesSeeder } from './finances.seeder';
@@ -33,7 +37,8 @@ import { User } from '../auth/entities/user.entity';
 @Module({
   imports: [
     // Registar entities para TypeORM gerenciar
-    TypeOrmModule.forFeature([Income, Fund, User]),
+    TypeOrmModule.forFeature([Income, Fund, Worship, Revenue, RevenueFund, User]),
+    AuditModule,
   ],
   controllers: [FinancesController],
   providers: [FinancesService, FinancesSeeder],

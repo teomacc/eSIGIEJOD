@@ -1,6 +1,9 @@
-import { Controller, Post, Get, Param, Body, Req } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Req, Query, UseGuards } from '@nestjs/common';
 import { FinancesService } from './finances.service';
 import { IncomeType } from './entities/income.entity';
+import { RevenueType, PaymentMethod } from './entities/revenue.entity';
+import { Weekday, WorshipType } from './entities/worship.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 /**
  * CONTROLADOR DE FINANÇAS (FinancesController)
@@ -29,6 +32,7 @@ import { IncomeType } from './entities/income.entity';
  * - Token é extraído do header Authorization
  * - req.user contém: userId, email, roles, churchId
  */
+@UseGuards(JwtAuthGuard)
 @Controller('finances')
 export class FinancesController {
   constructor(
@@ -83,6 +87,7 @@ export class FinancesController {
       date: Date;
       observations?: string;
       attachments?: string;
+      paymentMethod?: PaymentMethod;
     },
     @Req() req: any,
   ) {
@@ -93,6 +98,62 @@ export class FinancesController {
       churchId: req.user.churchId, // Do JWT
       recordedBy: req.user.userId, // Do JWT
     });
+  }
+
+  @Get('funds')
+  async listFunds(@Req() req: any) {
+    return this.financesService.listActiveFunds(req.user.churchId);
+  }
+
+  @Post('revenues')
+  async recordRevenue(
+    @Body()
+    body: {
+      type: RevenueType;
+      totalAmount: number;
+      paymentMethod: PaymentMethod;
+      notes?: string;
+      attachments?: string[];
+      worship: {
+        type: WorshipType;
+        weekday: Weekday;
+        serviceDate: string;
+        location?: string;
+        observations?: string;
+      };
+      distribution: Array<{ fundId: string; amount: number }>;
+    },
+    @Req() req: any,
+  ) {
+    return this.financesService.recordRevenue({
+      churchId: req.user.churchId,
+      recordedBy: req.user.userId,
+      type: body.type,
+      totalAmount: Number(body.totalAmount),
+      paymentMethod: body.paymentMethod,
+      notes: body.notes,
+      attachments: body.attachments,
+      worship: {
+        type: body.worship.type,
+        weekday: body.worship.weekday,
+        serviceDate: new Date(body.worship.serviceDate),
+        location: body.worship.location,
+        observations: body.worship.observations,
+      },
+      distribution: body.distribution.map((item) => ({
+        fundId: item.fundId,
+        amount: Number(item.amount),
+      })),
+    });
+  }
+
+  @Get('revenues/daily')
+  async getDailyRevenues(
+    @Query('date') date: string,
+    @Req() req: any,
+  ) {
+    const formatted = date ?? new Date().toLocaleDateString('en-CA');
+    return this.financesService.getDailyRevenues(req.user.churchId, formatted);
   }
 
   /**

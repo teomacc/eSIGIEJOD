@@ -7,6 +7,7 @@ import DashboardPage from '@/pages/DashboardPage';
 import RequisitionsPage from '@/pages/RequisitionsPage';
 import AuditPage from '@/pages/AuditPage';
 import ReportsPage from '@/pages/ReportsPage';
+import ReceitasPage from '@/pages/ReceitasPage';
 import '@/styles/globals.css';
 
 /**
@@ -85,6 +86,16 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RequisitionsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Receitas */}
+          <Route
+            path="/receitas"
+            element={
+              <ProtectedRoute>
+                <ReceitasPage />
               </ProtectedRoute>
             }
           />

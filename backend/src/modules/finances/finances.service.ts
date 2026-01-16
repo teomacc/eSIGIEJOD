@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Income, IncomeType } from './entities/income.entity';
 import { Fund, FundType } from './entities/fund.entity';
+import { Worship, WorshipType, Weekday } from './entities/worship.entity';
+import { Revenue, RevenueType, PaymentMethod } from './entities/revenue.entity';
+import { RevenueFund } from './entities/revenue-fund.entity';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-log.entity';
 
 /**
  * SERVIÇO DE FINANÇAS (FinancesService)
@@ -35,7 +40,208 @@ export class FinancesService {
     private incomeRepository: Repository<Income>,
     @InjectRepository(Fund)
     private fundRepository: Repository<Fund>,
+    @InjectRepository(Worship)
+    private worshipRepository: Repository<Worship>,
+    @InjectRepository(Revenue)
+    private revenueRepository: Repository<Revenue>,
+    @InjectRepository(RevenueFund)
+    private revenueFundRepository: Repository<RevenueFund>,
+    private readonly dataSource: DataSource,
+    private readonly auditService: AuditService,
   ) {}
+
+  private normalizeAmount(value: number | string): number {
+    return Number(value);
+  }
+
+  private amountsMatch(total: number, sum: number): boolean {
+    return Math.abs(Number(total) - Number(sum)) < 0.01;
+  }
+
+  private mapRevenueTypeToIncomeType(type: RevenueType): IncomeType {
+    switch (type) {
+      case RevenueType.TITHE:
+        return IncomeType.TITHE;
+      case RevenueType.SPECIAL_CONTRIBUTION:
+        return IncomeType.SPECIAL_CONTRIBUTION;
+      case RevenueType.MISSIONARY_OFFERING:
+        return IncomeType.MISSIONARY_OFFERING;
+      case RevenueType.CONSTRUCTION_OFFERING:
+        return IncomeType.CONSTRUCTION_OFFERING;
+      case RevenueType.EXTERNAL_DONATION:
+        return IncomeType.EXTERNAL_DONATION;
+      case RevenueType.SPECIAL_CAMPAIGN:
+        return IncomeType.SPECIAL_CAMPAIGN;
+      case RevenueType.TAFULA:
+        return IncomeType.TAFULA;
+      default:
+        return IncomeType.OFFERING;
+    }
+  }
+
+  async listActiveFunds(churchId: string): Promise<Fund[]> {
+    return this.fundRepository.find({
+      where: { churchId, isActive: true },
+      order: { type: 'ASC' },
+    });
+  }
+
+  async getDailyRevenues(churchId: string, serviceDate: string): Promise<Revenue[]> {
+    return this.revenueRepository
+      .createQueryBuilder('revenue')
+      .leftJoinAndSelect('revenue.allocations', 'allocation')
+      .leftJoinAndSelect('allocation.fund', 'fund')
+      .leftJoinAndSelect('revenue.worship', 'worship')
+      .where('revenue.churchId = :churchId', { churchId })
+      .andWhere('worship.serviceDate = :serviceDate', { serviceDate })
+      .orderBy('revenue.createdAt', 'DESC')
+      .getMany();
+  }
+
+  async recordRevenue(data: {
+    churchId: string;
+    recordedBy: string;
+    type: RevenueType;
+    totalAmount: number;
+    paymentMethod: PaymentMethod;
+    notes?: string;
+    attachments?: string[];
+    worship: {
+      type: WorshipType;
+      weekday: Weekday;
+      serviceDate: Date;
+      location?: string;
+      observations?: string;
+    };
+    distribution: Array<{ fundId: string; amount: number }>;
+  }): Promise<Revenue> {
+    if (!data.distribution?.length) {
+      throw new BadRequestException('A distribuicao por fundos e obrigatoria');
+    }
+
+    const totalAmount = this.normalizeAmount(data.totalAmount);
+    if (totalAmount <= 0) {
+      throw new BadRequestException('O valor total deve ser maior que zero');
+    }
+
+    const distributionTotals = data.distribution.map((item) => ({
+      fundId: item.fundId,
+      amount: this.normalizeAmount(item.amount),
+    }));
+
+    distributionTotals.forEach((item) => {
+      if (item.amount <= 0) {
+        throw new BadRequestException('Os valores alocados devem ser maiores que zero');
+      }
+    });
+
+    const distributedSum = distributionTotals.reduce((sum, item) => sum + item.amount, 0);
+
+    if (!this.amountsMatch(totalAmount, distributedSum)) {
+      throw new BadRequestException('Total distribuido deve ser igual ao valor total');
+    }
+
+    const uniqueFundIds = Array.from(new Set(distributionTotals.map((item) => item.fundId)));
+
+    const funds = await this.fundRepository.find({
+      where: {
+        id: In(uniqueFundIds),
+        churchId: data.churchId,
+        isActive: true,
+      },
+    });
+
+    if (funds.length !== uniqueFundIds.length) {
+      throw new BadRequestException('Fundos invalidos na distribuicao');
+    }
+
+    const result = await this.dataSource.transaction(async (manager) => {
+      const worshipRepo = manager.getRepository(Worship);
+      const revenueRepo = manager.getRepository(Revenue);
+      const revenueFundRepo = manager.getRepository(RevenueFund);
+      const incomeRepo = manager.getRepository(Income);
+      const fundRepo = manager.getRepository(Fund);
+
+      const worship = worshipRepo.create({
+        churchId: data.churchId,
+        type: data.worship.type,
+        weekday: data.worship.weekday,
+        serviceDate: data.worship.serviceDate,
+        location: data.worship.location,
+        observations: data.worship.observations,
+      });
+      const savedWorship = await worshipRepo.save(worship);
+
+      const revenue = revenueRepo.create({
+        churchId: data.churchId,
+        recordedBy: data.recordedBy,
+        type: data.type,
+        totalAmount,
+        paymentMethod: data.paymentMethod,
+        worshipId: savedWorship.id,
+        notes: data.notes,
+        attachments: data.attachments,
+      });
+      const savedRevenue = await revenueRepo.save(revenue);
+
+      const allocations = [] as RevenueFund[];
+      const incomes = [] as Income[];
+
+      for (const item of distributionTotals) {
+        const allocation = revenueFundRepo.create({
+          revenueId: savedRevenue.id,
+          fundId: item.fundId,
+          amount: item.amount,
+        });
+        const savedAllocation = await revenueFundRepo.save(allocation);
+        allocations.push(savedAllocation);
+
+        await fundRepo.increment({ id: item.fundId }, 'balance', item.amount);
+
+        const income = incomeRepo.create({
+          churchId: data.churchId,
+          fundId: item.fundId,
+          recordedBy: data.recordedBy,
+          type: this.mapRevenueTypeToIncomeType(data.type),
+          amount: item.amount,
+          date: data.worship.serviceDate,
+          observations: data.notes,
+          attachments: data.attachments ? JSON.stringify(data.attachments) : undefined,
+          revenueId: savedRevenue.id,
+          worshipId: savedWorship.id,
+          paymentMethod: data.paymentMethod,
+        });
+        incomes.push(income);
+      }
+
+      await incomeRepo.save(incomes);
+
+      savedRevenue.allocations = allocations;
+      savedRevenue.worship = savedWorship;
+
+      return savedRevenue;
+    });
+
+    await this.auditService.logAction({
+      churchId: data.churchId,
+      userId: data.recordedBy,
+      action: AuditAction.REVENUE_RECORDED,
+      entityId: result.id,
+      entityType: 'Revenue',
+      changes: {
+        type: result.type,
+        paymentMethod: result.paymentMethod,
+        totalAmount,
+        distribution: result.allocations?.map((item) => ({
+          fundId: item.fundId,
+          amount: item.amount,
+        })),
+      },
+      description: 'Receita registada com distribuicao por fundos',
+    });
+
+    return result;
+  }
 
   /**
    * REGISTAR ENTRADA - Cria registro imutável de dinheiro recebido
@@ -72,6 +278,9 @@ export class FinancesService {
     date: Date;
     observations?: string;
     attachments?: string;
+    revenueId?: string;
+    worshipId?: string;
+    paymentMethod?: PaymentMethod;
   }): Promise<Income> {
     // 1. Criar Income entity (ainda não salva)
     const income = this.incomeRepository.create(data);
@@ -85,7 +294,7 @@ export class FinancesService {
     await this.fundRepository.increment(
       { id: data.fundId },
       'balance',
-      parseFloat(data.amount.toString()),
+      this.normalizeAmount(data.amount),
     );
 
     // 4. Retornar Income criada
