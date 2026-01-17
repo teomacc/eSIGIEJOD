@@ -26,6 +26,7 @@ interface RevenueSummary {
   worship?: {
     type: string;
     serviceDate: string;
+    location?: string;
   };
   allocations?: Array<{
     id: string;
@@ -68,6 +69,7 @@ export default function ReceitasPage() {
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [distributions, setDistributions] = useState<DistributionItem[]>([]);
   const [dailyRevenues, setDailyRevenues] = useState<RevenueSummary[]>([]);
+  const [allRevenues, setAllRevenues] = useState<RevenueSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -135,9 +137,18 @@ export default function ReceitasPage() {
     setDailyRevenues(response.data);
   };
 
+  const loadAllRevenues = async () => {
+    try {
+      const response = await api.finances.getRevenues();
+      setAllRevenues(response.data);
+    } catch (error) {
+      console.error('Erro ao carregar receitas:', error);
+    }
+  };
+
   useEffect(() => {
     loadFunds();
-  
+    loadAllRevenues();
   }, []);
 
   useEffect(() => {
@@ -614,6 +625,61 @@ export default function ReceitasPage() {
             </div>
           </section>
         </form>
+
+        <section className="all-revenues-card">
+          <div className="receitas-card-header">
+            <div>
+              <h2>Histórico de Receitas</h2>
+              <p>Todas as receitas registadas no sistema.</p>
+            </div>
+          </div>
+
+          {allRevenues.length === 0 ? (
+            <p className="helper-text">Nenhuma receita registada ainda.</p>
+          ) : (
+            <div className="all-revenues-table">
+              <div className="all-revenues-header">
+                <span>Data</span>
+                <span>Tipo</span>
+                <span>Forma</span>
+                <span>Valor Total</span>
+                <span>Distribuição</span>
+                <span>Culto</span>
+              </div>
+              {allRevenues.map((revenue) => (
+                <div key={revenue.id} className="all-revenues-row">
+                  <span>
+                    {revenue.worship?.serviceDate
+                      ? revenue.worship.serviceDate.slice(0, 10)
+                      : new Date(revenue.createdAt).toLocaleDateString('pt-MZ')}
+                  </span>
+                  <span>{revenueTypeLabel(revenue.type)}</span>
+                  <span>
+                    {PAYMENT_METHODS.find((method) => method.value === revenue.paymentMethod)?.label ?? revenue.paymentMethod}
+                  </span>
+                  <span>{formatCurrency(Number(revenue.totalAmount))}</span>
+                  <div className="revenue-distribution">
+                    {revenue.allocations?.map((allocation) => (
+                      <small key={allocation.id}>
+                        {allocation.fund.type.replace('FUNDO_', '').replace('_', ' ')}: {formatCurrency(Number(allocation.amount))}
+                      </small>
+                    ))}
+                  </div>
+                  <span>
+                    {revenue.worship?.type ? (
+                      <div>
+                        <div>{WORSHIP_TYPES.find((w) => w.value === revenue.worship?.type)?.label ?? revenue.worship?.type}</div>
+                        <small>{weekdayLabel(dateToWeekday(revenue.worship?.serviceDate || ''))} · {revenue.worship?.location || 'Sem local'}</small>
+                      </div>
+                    ) : (
+                      '--'
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

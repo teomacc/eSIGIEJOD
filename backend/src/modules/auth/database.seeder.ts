@@ -1,9 +1,10 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole, Sexo, FuncaoMinisterial, Departamento } from '../auth/entities/user.entity';
+import { User, UserRole, Sexo, FuncaoMinisterial, Departamento, Provincia } from '../auth/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * SERVIÇO DE SEED (DatabaseSeeder)
@@ -29,12 +30,15 @@ export class DatabaseSeeder implements OnModuleInit {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    private configService: ConfigService,
   ) {}
 
   /**
    * Hook executado quando o módulo é inicializado
    */
   async onModuleInit() {
+    // Aguardar um pouco para garantir que as tabelas foram criadas
+    await new Promise(resolve => setTimeout(resolve, 1000));
     await this.seedDatabase();
   }
 
@@ -49,11 +53,16 @@ export class DatabaseSeeder implements OnModuleInit {
   async seedDatabase() {
     console.log('🌱 [SEED] Verificando base de dados...');
 
-    // Contar usuários existentes
-    const userCount = await this.usersRepository.count();
+    try {
+      // Contar usuários existentes
+      const userCount = await this.usersRepository.count();
 
-    if (userCount > 0) {
-      console.log(`✅ [SEED] Base de dados já tem ${userCount} usuário(s). Seed não necessário.`);
+      if (userCount > 0) {
+        console.log(`✅ [SEED] Base de dados já tem ${userCount} usuário(s). Seed não necessário.`);
+        return;
+      }
+    } catch (error) {
+      console.log('⚠️ Tabelas ainda não existem, pulando seed de usuários');
       return;
     }
 
@@ -111,7 +120,7 @@ export class DatabaseSeeder implements OnModuleInit {
       email: 'admin@esigiejod.com',
       telefone: '+258 84 000 0000',
       cidade: 'Maputo',
-      provincia: 'Maputo',
+      provincia: Provincia.MAPUTO_PROVINCIA,
       
       // Acesso
       username: 'admin',

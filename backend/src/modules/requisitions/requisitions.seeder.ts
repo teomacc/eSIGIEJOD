@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Requisition, RequisitionState, ExpenseCategory, RequisitionMagnitude } from './entities/requisition.entity';
 import { User } from '../auth/entities/user.entity';
 import { Fund } from '../finances/entities/fund.entity';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * SERVIÇO DE SEED DE REQUISIÇÕES (RequisitionsSeeder)
@@ -16,6 +17,7 @@ import { Fund } from '../finances/entities/fund.entity';
  * 
  * IMPORTANTE:
  * - Apenas cria se banco estiver vazio
+ * - Pode ser desabilitado via ENV: ENABLE_SEEDS=false
  */
 @Injectable()
 export class RequisitionsSeeder implements OnModuleInit {
@@ -26,17 +28,32 @@ export class RequisitionsSeeder implements OnModuleInit {
     private userRepository: Repository<User>,
     @InjectRepository(Fund)
     private fundRepository: Repository<Fund>,
+    private configService: ConfigService,
   ) {}
 
   async onModuleInit() {
+    // Aguardar um pouco para garantir que as tabelas foram criadas
+    await new Promise(resolve => setTimeout(resolve, 3000));
     await this.seedRequisitions();
   }
 
   private async seedRequisitions() {
-    // Verificar se já existem requisições
-    const existingRequisitions = await this.requisitionRepository.count();
-    if (existingRequisitions > 0) {
-      console.log('✅ Requisições já existem, pulando seed');
+    // Verificar se seeds estão habilitados
+    const enableSeeds = this.configService.get('ENABLE_SEEDS', 'true');
+    if (enableSeeds === 'false') {
+      console.log('⏭️  Seeds de requisições desabilitados via ENABLE_SEEDS=false');
+      return;
+    }
+
+    try {
+      // Verificar se já existem requisições
+      const existingRequisitions = await this.requisitionRepository.count();
+      if (existingRequisitions > 0) {
+        console.log('✅ Requisições já existem, pulando seed');
+        return;
+      }
+    } catch (error) {
+      console.log('⚠️ Tabelas ainda não existem, pulando seed de requisições');
       return;
     }
 

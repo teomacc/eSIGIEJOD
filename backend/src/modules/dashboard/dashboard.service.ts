@@ -36,24 +36,25 @@ export class DashboardService {
    * @returns Objeto com todas as métricas agregadas
    */
   async getDashboardMetrics(churchId: string) {
-    const now = new Date();
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    try {
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    // Mês anterior para comparação
-    const firstDayOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      // Mês anterior para comparação
+      const firstDayOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-    // 1. RECEITA DO MÊS ATUAL
-    const receitaMesResult = await this.incomeRepository
-      .createQueryBuilder('income')
-      .select('SUM(income.amount)', 'total')
-      .where('income.churchId = :churchId', { churchId })
-      .andWhere('income.date >= :start', { start: firstDayOfMonth })
-      .andWhere('income.date <= :end', { end: lastDayOfMonth })
-      .getRawOne();
+      // 1. RECEITA DO MÊS ATUAL
+      const receitaMesResult = await this.incomeRepository
+        .createQueryBuilder('income')
+        .select('SUM(income.amount)', 'total')
+        .where('income.churchId = :churchId', { churchId })
+        .andWhere('income.date >= :start', { start: firstDayOfMonth })
+        .andWhere('income.date <= :end', { end: lastDayOfMonth })
+        .getRawOne();
 
-    const receitaMes = parseFloat(receitaMesResult?.total || '0');
+      const receitaMes = parseFloat(receitaMesResult?.total || '0');
 
     // Receita do mês anterior para comparação
     const receitaMesAnteriorResult = await this.incomeRepository
@@ -213,6 +214,33 @@ export class DashboardService {
       },
       alertas,
     };
+    } catch (error) {
+      // Se as tabelas não existem ainda, retornar dashboard vazio
+      console.error('Erro ao buscar métricas do dashboard:', error);
+      return {
+        receita: {
+          total: 0,
+          variacao: 0,
+        },
+        despesas: {
+          total: 0,
+          variacao: 0,
+        },
+        requisicoes: {
+          total: 0,
+          urgentes: 0,
+          normais: 0,
+        },
+        fundos: {
+          ativos: 0,
+          balanco: [],
+        },
+        alertas: [{
+          tipo: 'info',
+          mensagem: 'Sistema inicializado. Aguardando primeiros registros.',
+        }],
+      };
+    }
   }
 
   /**

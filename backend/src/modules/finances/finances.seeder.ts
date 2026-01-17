@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Fund, FundType } from './entities/fund.entity';
 import { Income, IncomeType } from './entities/income.entity';
 import { User } from '../auth/entities/user.entity';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * SERVIÇO DE SEED DE FINANÇAS (FinancesSeeder)
@@ -17,6 +18,7 @@ import { User } from '../auth/entities/user.entity';
  * IMPORTANTE:
  * - Apenas cria se banco estiver vazio
  * - Usa churchId do admin como referência
+ * - Pode ser desabilitado via ENV: ENABLE_SEEDS=false
  */
 @Injectable()
 export class FinancesSeeder implements OnModuleInit {
@@ -27,17 +29,25 @@ export class FinancesSeeder implements OnModuleInit {
     private incomeRepository: Repository<Income>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private configService: ConfigService,
   ) {}
 
   async onModuleInit() {
+    // Aguardar um pouco para garantir que as tabelas foram criadas
+    await new Promise(resolve => setTimeout(resolve, 2000));
     await this.seedFinances();
   }
 
   private async seedFinances() {
-    // Verificar se já existem fundos
-    const existingFunds = await this.fundRepository.count();
-    if (existingFunds > 0) {
-      console.log('✅ Fundos já existem, pulando seed de finanças');
+    try {
+      // Verificar se já existem fundos
+      const existingFunds = await this.fundRepository.count();
+      if (existingFunds > 0) {
+        console.log('✅ Fundos já existem, pulando seed de finanças');
+        return;
+      }
+    } catch (error) {
+      console.log('⚠️ Tabelas ainda não existem, pulando seed de finanças');
       return;
     }
 
@@ -53,15 +63,15 @@ export class FinancesSeeder implements OnModuleInit {
 
     const churchId = admin.churchId;
 
-    console.log('🌱 Criando fundos padrão...');
+    console.log('🌱 Criando fundos padrão (ESSENCIAIS)...');
 
-    // Criar fundos padrão
+    // Criar fundos padrão - SEMPRE criados (essenciais para o sistema funcionar)
     const fundTypes = [
-      { type: FundType.GENERAL, description: 'Fundo geral para operações da igreja', balance: 500000 },
-      { type: FundType.CONSTRUCTION, description: 'Fundo para construção e reformas', balance: 150000 },
-      { type: FundType.MISSIONS, description: 'Fundo para projetos missionários', balance: 80000 },
-      { type: FundType.SOCIAL, description: 'Fundo para assistência social', balance: 45000 },
-      { type: FundType.EVENTS, description: 'Fundo para eventos e conferências', balance: 30000 },
+      { type: FundType.GENERAL, description: 'Fundo geral para operações da igreja', balance: 0 },
+      { type: FundType.CONSTRUCTION, description: 'Fundo para construção e reformas', balance: 0 },
+      { type: FundType.MISSIONS, description: 'Fundo para projetos missionários', balance: 0 },
+      { type: FundType.SOCIAL, description: 'Fundo para assistência social', balance: 0 },
+      { type: FundType.EVENTS, description: 'Fundo para eventos e conferências', balance: 0 },
     ];
 
     const funds = [];
@@ -77,9 +87,17 @@ export class FinancesSeeder implements OnModuleInit {
       funds.push(savedFund);
     }
 
-    console.log(`✅ ${funds.length} fundos criados`);
+    console.log(`✅ ${funds.length} fundos criados com saldo zero`);
 
-    console.log('🌱 Criando entradas de exemplo...');
+    // Verificar se seeds de dados de exemplo estão habilitados
+    const enableSeeds = this.configService.get('ENABLE_SEEDS', 'true');
+    if (enableSeeds === 'false') {
+      console.log('⏭️  Seeds de receitas de exemplo desabilitados via ENABLE_SEEDS=false');
+      console.log('✅ Fundos criados! Sistema pronto para uso.');
+      return;
+    }
+
+    console.log('🌱 Criando receitas de exemplo...');
 
     // Criar entradas dos últimos 3 meses
     const now = new Date();

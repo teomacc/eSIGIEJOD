@@ -39,6 +39,7 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "typeorm": "^0.3.17"
+    "ts-node": "1.7.1",
+    "typeorm": "^0.3.1"
   }
 }

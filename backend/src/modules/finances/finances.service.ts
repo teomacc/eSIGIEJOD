@@ -98,6 +98,17 @@ export class FinancesService {
       .getMany();
   }
 
+  async getRevenuesByChurch(churchId: string): Promise<Revenue[]> {
+    return this.revenueRepository
+      .createQueryBuilder('revenue')
+      .leftJoinAndSelect('revenue.allocations', 'allocation')
+      .leftJoinAndSelect('allocation.fund', 'fund')
+      .leftJoinAndSelect('revenue.worship', 'worship')
+      .where('revenue.churchId = :churchId', { churchId })
+      .orderBy('revenue.createdAt', 'DESC')
+      .getMany();
+  }
+
   async recordRevenue(data: {
     churchId: string;
     recordedBy: string;

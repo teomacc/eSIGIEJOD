@@ -147,6 +147,11 @@ export class FinancesController {
     });
   }
 
+  @Get('revenues')
+  async getRevenues(@Req() req: any) {
+    return this.financesService.getRevenuesByChurch(req.user.churchId);
+  }
+
   @Get('revenues/daily')
   async getDailyRevenues(
     @Query('date') date: string,
