@@ -1,10 +1,12 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import Layout from '@/components/Layout';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPageComplete';
 import DashboardPage from '@/pages/DashboardPage';
 import RequisitionsPage from '@/pages/RequisitionsPage';
+import DespesasPage from '@/pages/DespesasPage';
 import AuditPage from '@/pages/AuditPage';
 import ReportsPage from '@/pages/ReportsPage';
 import ReceitasPage from '@/pages/ReceitasPage';
@@ -60,65 +62,33 @@ export default function App() {
           {/* Login - pública */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Registo - protegida (apenas DIRECTOR/TREASURER) */}
-          <Route
-            path="/register"
-            element={
-              <ProtectedRoute>
-                <RegisterPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* Dashboard - home protegida */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* Requisições */}
-          <Route
-            path="/requisitions"
-            element={
-              <ProtectedRoute>
-                <RequisitionsPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Rotas protegidas com Layout */}
+          <Route element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            {/* Dashboard - home protegida */}
+            <Route path="/" element={<DashboardPage />} />
+            
+            {/* Registo - protegida (apenas DIRECTOR/TREASURER) */}
+            <Route path="/register" element={<RegisterPage />} />
+            
+            {/* Requisições */}
+            <Route path="/requisitions" element={<RequisitionsPage />} />
 
-          {/* Receitas */}
-          <Route
-            path="/receitas"
-            element={
-              <ProtectedRoute>
-                <ReceitasPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* Auditoria */}
-          <Route
-            path="/audit"
-            element={
-              <ProtectedRoute>
-                <AuditPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* Relatórios */}
-          <Route
-            path="/reports"
-            element={
-              <ProtectedRoute>
-                <ReportsPage />
-              </ProtectedRoute>
-            }
-          />
+            {/* Despesas */}
+            <Route path="/despesas" element={<DespesasPage />} />
+
+            {/* Receitas */}
+            <Route path="/receitas" element={<ReceitasPage />} />
+            
+            {/* Auditoria */}
+            <Route path="/audit" element={<AuditPage />} />
+            
+            {/* Relatórios */}
+            <Route path="/reports" element={<ReportsPage />} />
+          </Route>
           
           {/* Rota não encontrada */}
           <Route path="*" element={<Navigate to="/" replace />} />

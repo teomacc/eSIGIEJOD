@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
 import { PAYMENT_METHODS, REVENUE_TYPES, WEEKDAYS, WORSHIP_TYPES } from '@/constants/finance';
 import { useAuth } from '@/context/AuthContext';
@@ -133,7 +133,8 @@ export default function ReceitasPage() {
   };
 
   const loadDailyRevenues = async (dateValue: string) => {
-    const response = await api.finances.getDailyRevenues(dateValue);
+    const safeDate = dateValue && dateValue.trim() ? dateValue : getCurrentDateISO();
+    const response = await api.finances.getDailyRevenues(safeDate);
     setDailyRevenues(response.data);
   };
 
@@ -265,83 +266,36 @@ export default function ReceitasPage() {
   };
 
   return (
-    <div className="dashboard-layout">
-      <aside className="dashboard-sidebar">
-        <div className="sidebar-logo">
-          <h2>eSIGIEJOD</h2>
-          <p>Sistema de Gestão Financeira</p>
-        </div>
-
-        <nav className="sidebar-nav">
-          <Link to="/" className="nav-item">
-            <span className="nav-icon">📊</span>
-            Dashboard
-          </Link>
-          <Link to="/receitas" className="nav-item active">
-            <span className="nav-icon">💰</span>
-            Receitas
-          </Link>
-          <Link to="/despesas" className="nav-item">
-            <span className="nav-icon">🧾</span>
-            Despesas
-          </Link>
-          <Link to="/requisitions" className="nav-item">
-            <span className="nav-icon">📝</span>
-            Requisições
-          </Link>
-          <Link to="/aprovacoes" className="nav-item">
-            <span className="nav-icon">✅</span>
-            Aprovações
-          </Link>
-          <Link to="/fundos" className="nav-item">
-            <span className="nav-icon">🏦</span>
-            Fundos
-          </Link>
-          <Link to="/reports" className="nav-item">
-            <span className="nav-icon">📑</span>
-            Relatórios
-          </Link>
-          <Link to="/audit" className="nav-item">
-            <span className="nav-icon">🕵🏽</span>
-            Auditoria
-          </Link>
-          <Link to="/configuracoes" className="nav-item">
-            <span className="nav-icon">⚙️</span>
-            Configurações
-          </Link>
-        </nav>
-      </aside>
-
-      <main className="dashboard-main">
-        <header className="dashboard-header">
-          <div className="header-info">
-            <h1>Gestão de Receitas</h1>
-            <div className="header-user">
-              <div className="user-details">
-                <p className="user-name">👤 {user?.name || user?.email?.split('@')[0]}</p>
-                <p className="user-role">
-                  {user?.roles?.includes('TREASURER') ? 'Tesoureiro' :
-                   user?.roles?.includes('DIRECTOR') ? 'Director Financeiro' :
-                   user?.roles?.includes('ADMIN') ? 'Administrador' : 'Usuário'}
-                </p>
-                <p className="user-email">📧 {user?.email}</p>
-                <p className="user-church">🏛️ Igreja: IEJOD – Sede Central</p>
-              </div>
+    <>
+      <header className="dashboard-header">
+        <div className="header-info">
+          <h1>Gestão de Receitas</h1>
+          <div className="header-user">
+            <div className="user-details">
+              <p className="user-name">👤 {user?.name || user?.email?.split('@')[0]}</p>
+              <p className="user-role">
+                {user?.roles?.includes('TREASURER') ? 'Tesoureiro' :
+                 user?.roles?.includes('DIRECTOR') ? 'Director Financeiro' :
+                 user?.roles?.includes('ADMIN') ? 'Administrador' : 'Usuário'}
+              </p>
+              <p className="user-email">📧 {user?.email}</p>
+              <p className="user-church">🏛️ Igreja: IEJOD – Sede Central</p>
             </div>
           </div>
-          <div className="header-actions">
-            <button className="btn-profile" onClick={() => navigate('/perfil')}>Perfil</button>
-            <button className="btn-password" onClick={() => navigate('/alterar-senha')}>Alterar Senha</button>
-            {(hasRole('ADMIN') || hasRole('DIRECTOR') || hasRole('TREASURER')) && (
-              <button className="btn-register" onClick={() => navigate('/register')}>
-                ➕ Registar Usuário
-              </button>
-            )}
-            <button className="btn-logout" onClick={logout}>🚪 Sair</button>
-          </div>
-        </header>
+        </div>
+        <div className="header-actions">
+          <button className="btn-profile" onClick={() => navigate('/perfil')}>Perfil</button>
+          <button className="btn-password" onClick={() => navigate('/alterar-senha')}>Alterar Senha</button>
+          {(hasRole('ADMIN') || hasRole('DIRECTOR') || hasRole('TREASURER')) && (
+            <button className="btn-register" onClick={() => navigate('/register')}>
+              ➕ Registar Usuário
+            </button>
+          )}
+          <button className="btn-logout" onClick={logout}>🚪 Sair</button>
+        </div>
+      </header>
 
-        <form className="receitas-form" onSubmit={handleSubmit}>
+      <form className="receitas-form" onSubmit={handleSubmit}>
           <section className="receitas-grid">
             <div className="receitas-left">
               <div className="receitas-card">
@@ -680,7 +634,6 @@ export default function ReceitasPage() {
             </div>
           )}
         </section>
-      </main>
-    </div>
-  );
-}
+      </>
+    );
+  }

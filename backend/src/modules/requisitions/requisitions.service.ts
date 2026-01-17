@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Requisition, RequisitionState, RequisitionMagnitude, ExpenseCategory } from './entities/requisition.entity';
+import { Requisition, RequisitionState, RequisitionMagnitude, ExpenseCategory, RequisitionCreatorType } from './entities/requisition.entity';
 import { ApprovalService } from '../approval/approval.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
@@ -93,6 +93,7 @@ export class RequisitionsService {
       category: string;
       requestedAmount: number;
       justification: string;
+      creatorType?: RequisitionCreatorType;
       attachments?: string[];
     },
   ): Promise<Requisition> {
@@ -118,6 +119,7 @@ export class RequisitionsService {
     requisition.churchId = churchId;
     requisition.fundId = data.fundId;
     requisition.requestedBy = userId;
+    requisition.creatorType = data.creatorType || RequisitionCreatorType.OBREIRO;
     requisition.category = data.category as ExpenseCategory;
     requisition.requestedAmount = data.requestedAmount as any; // TypeORM handle decimal
     requisition.magnitude = magnitude;
@@ -546,5 +548,236 @@ export class RequisitionsService {
     } else {
       return RequisitionMagnitude.CRITICAL;
     }
+  }
+
+  /**
+   * Obter todas as requisições de uma igreja
+   */
+  async getRequisitionsByChurch(churchId: string): Promise<Requisition[]> {
+    return this.requisitionsRepository.find({
+      where: { churchId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * LISTAR REQUISIÇÕES EM ANÁLISE - getUnderReviewRequisitions()
+   * 
+   * Retorna requisições em estado UNDER_REVIEW (aguardando aprovação)
+   */
+  async getUnderReviewRequisitions(churchId: string): Promise<Requisition[]> {
+    return this.requisitionsRepository.find({
+      where: {
+        churchId,
+        state: RequisitionState.UNDER_REVIEW,
+      },
+      order: {
+        requestedAt: 'ASC',
+      },
+    });
+  }
+
+  /**
+   * LISTAR REQUISIÇÕES APROVADAS - getApprovedRequisitions()
+   * 
+   * Retorna requisições em estado APPROVED (prontas para executar)
+   */
+  async getApprovedRequisitions(churchId: string): Promise<Requisition[]> {
+    return this.requisitionsRepository.find({
+      where: {
+        churchId,
+        state: RequisitionState.APPROVED,
+      },
+      order: {
+        requestedAt: 'ASC',
+      },
+    });
+  }
+
+  /**
+   * LISTAR REQUISIÇÕES EXECUTADAS - getExecutedRequisitions()
+   * 
+   * Retorna requisições em estado EXECUTED (já pagas)
+   */
+  async getExecutedRequisitions(churchId: string): Promise<Requisition[]> {
+    return this.requisitionsRepository.find({
+      where: {
+        churchId,
+        state: RequisitionState.EXECUTED,
+      },
+      order: {
+        requestedAt: 'DESC',
+      },
+    });
+  }
+
+  /**
+   * APROVAR NÍVEL 2 - approveLevel2()
+   * 
+   * Chamado por: Director Financeiro ou Admin
+   * Requerido quando valor excede limite local
+   * 
+   * Transita: EM_ANALISE → APROVADA (com marca de aprovação nível 2)
+   */
+  async approveLevel2(
+    requisitionId: string,
+    userId: string,
+    approvedAmount?: number,
+  ): Promise<Requisition> {
+    // Buscar requisição
+    const requisition = await this.requisitionsRepository.findOne({
+      where: { id: requisitionId },
+    });
+
+    if (!requisition) {
+      throw new BadRequestException('Requisição não encontrada');
+    }
+
+    // Validar estado
+    if (requisition.state !== RequisitionState.UNDER_REVIEW) {
+      throw new BadRequestException(
+        `Não pode aprovar nível 2 requisição em estado ${requisition.state}`,
+      );
+    }
+
+    // Validar montante
+    const finalAmount = approvedAmount || requisition.requestedAmount;
+    if (finalAmount > requisition.requestedAmount) {
+      throw new BadRequestException(
+        'Valor aprovado não pode ser maior que solicitado',
+      );
+    }
+
+    // Atualizar
+    requisition.state = RequisitionState.APPROVED;
+    requisition.approvedAmount = finalAmount;
+    requisition.approvedBy = userId;
+    requisition.approvedAt = new Date();
+
+    const updated = await this.requisitionsRepository.save(requisition);
+
+    // Registrar auditoria
+    await this.auditService.logAction({
+      churchId: requisition.churchId,
+      userId,
+      action: AuditAction.REQUISITION_APPROVED,
+      entityId: requisition.id,
+      entityType: 'Requisition',
+      changes: {
+        before: {
+          state: RequisitionState.UNDER_REVIEW,
+          approvedAmount: null,
+        },
+        after: {
+          state: RequisitionState.APPROVED,
+          approvedAmount: finalAmount,
+        },
+      },
+      description: `Requisição aprovada (nível 2). Valor: ${finalAmount} MT`,
+    });
+
+    return updated;
+  }
+
+  /**
+   * MARCAR COMO EXECUTADA - markAsExecuted()
+   * 
+   * Marca requisição como executada após criação de despesa
+   */
+  async markAsExecuted(
+    requisitionId: string,
+    userId: string,
+  ): Promise<Requisition> {
+    // Buscar requisição
+    const requisition = await this.requisitionsRepository.findOne({
+      where: { id: requisitionId },
+    });
+
+    if (!requisition) {
+      throw new BadRequestException('Requisição não encontrada');
+    }
+
+    // Atualizar
+    requisition.state = RequisitionState.EXECUTED;
+    requisition.updatedAt = new Date();
+
+    const updated = await this.requisitionsRepository.save(requisition);
+
+    // Registrar auditoria
+    await this.auditService.logAction({
+      churchId: requisition.churchId,
+      userId,
+      action: AuditAction.REQUISITION_EXECUTED,
+      entityId: requisition.id,
+      entityType: 'Requisition',
+      changes: {
+        before: { state: RequisitionState.APPROVED },
+        after: { state: RequisitionState.EXECUTED },
+      },
+      description: `Requisição marcada como executada. Valor: ${requisition.approvedAmount} MT`,
+    });
+
+    return updated;
+  }
+
+  /**
+   * NOTIFICAR PASTOR - notifyPastor()
+   * 
+   * Registra que pastor foi notificado de requisição
+   * Não bloqueia aprovação, apenas registra conhecimento
+   */
+  async notifyPastor(
+    requisitionId: string,
+    userId: string,
+  ): Promise<Requisition> {
+    // Buscar requisição
+    const requisition = await this.requisitionsRepository.findOne({
+      where: { id: requisitionId },
+    });
+
+    if (!requisition) {
+      throw new BadRequestException('Requisição não encontrada');
+    }
+
+    // Atualizar
+    requisition.notificadoPastorEm = new Date();
+
+    const updated = await this.requisitionsRepository.save(requisition);
+
+    // Registrar auditoria
+    await this.auditService.logAction({
+      churchId: requisition.churchId,
+      userId,
+      action: AuditAction.REQUISITION_ACKNOWLEDGED,
+      entityId: requisition.id,
+      entityType: 'Requisition',
+      changes: {
+        before: { notificadoPastorEm: null },
+        after: { notificadoPastorEm: new Date() },
+      },
+      description: 'Pastor tomou conhecimento da requisição',
+    });
+
+    return updated;
+  }
+
+  /**
+   * LISTAR POR FUNDO - getRequisitionsByFund()
+   * 
+   * Retorna todas as requisições de um fundo específico de uma igreja
+   */
+  async getRequisitionsByFund(
+    churchId: string,
+    fundId: string,
+  ): Promise<Requisition[]> {
+    return this.requisitionsRepository.find({
+      where: {
+        churchId,
+        fundId,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
   }
 }

@@ -1,0 +1,97 @@
+.layout-shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.layout-sidebar {
+  width: 240px;
+  background: linear-gradient(180deg, #26384f 0%, #1f2c3d 100%);
+  color: white;
+  padding: 24px 0;
+  position: fixed;
+  inset: 0 0 0 0;
+  max-height: 100vh;
+  overflow-y: auto;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.layout-logo {
+  padding: 0 24px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 16px;
+}
+
+.layout-logo h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.layout-logo p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.layout-section {
+  padding: 0 16px 12px;
+}
+
+.layout-section-title {
+  padding: 0 8px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.layout-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.layout-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.layout-nav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.layout-nav-item.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  font-weight: 600;
+}
+
+.layout-nav-icon {
+  width: 20px;
+  text-align: center;
+}
+
+.layout-main {
+  flex: 1;
+  margin-left: 240px;
+  padding: 24px;
+  min-height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .layout-sidebar {
+    width: 200px;
+  }
+  .layout-main {
+    margin-left: 200px;
+  }
+}

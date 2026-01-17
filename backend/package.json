@@ -20,9 +20,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm:migration:create": "typeorm migration:create",
-    "typeorm:migration:run": "typeorm migration:run",
-    "typeorm:migration:revert": "typeorm migration:revert",
-    "db:migrate": "typeorm migration:run",
+    "typeorm:migration:run": "typeorm-ts-node-commonjs -d ./data-source.ts migration:run",
+    "typeorm:migration:revert": "typeorm-ts-node-commonjs -d ./data-source.ts migration:revert",
+    "db:migrate": "typeorm-ts-node-commonjs -d ./data-source.ts migration:run",
     "db:seed": "ts-node src/database/seeds/index.ts"
   },
   "dependencies": {

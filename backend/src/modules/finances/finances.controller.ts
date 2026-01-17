@@ -1,5 +1,7 @@
 import { Controller, Post, Get, Param, Body, Req, Query, UseGuards } from '@nestjs/common';
 import { FinancesService } from './finances.service';
+import { ExpenseService } from './expense.service';
+import { FinancialMovementService } from './financial-movement.service';
 import { IncomeType } from './entities/income.entity';
 import { RevenueType, PaymentMethod } from './entities/revenue.entity';
 import { Weekday, WorshipType } from './entities/worship.entity';
@@ -37,6 +39,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class FinancesController {
   constructor(
     private financesService: FinancesService,
+    private expenseService: ExpenseService,
+    private movementService: FinancialMovementService,
   ) {}
 
   /**
@@ -243,5 +247,119 @@ export class FinancesController {
   @Get('income/fund/:id')
   async getIncomeByFund(@Param('id') fundId: string) {
     return this.financesService.getIncomeByFund(fundId);
+  }
+
+  /**
+   * LISTAR DESPESAS - GET /finances/expenses
+   * 
+   * Query params (opcionais):
+   * - limit: Número de resultados (padrão: 100)
+   * - offset: Começar a partir de (padrão: 0)
+   * 
+   * Resposta:
+   * Array de Despesa entities ordenadas por data (mais recentes primeiro)
+   * 
+   * Uso:
+   * GET /finances/expenses
+   * Retorna todas as despesas da igreja com paginação
+   */
+  @Get('expenses')
+  async getExpenses(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('fundId') fundId?: string,
+    @Query('executorId') executorId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('minAmount') minAmount?: string,
+    @Query('maxAmount') maxAmount?: string,
+    @Query('search') search?: string,
+    @Req() req?: any,
+  ) {
+    const churchId = req.user.churchId;
+    const limitNum = limit ? parseInt(limit, 10) : 100;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const min = minAmount ? Number(minAmount) : undefined;
+    const max = maxAmount ? Number(maxAmount) : undefined;
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+    const [expenses, total] = await this.expenseService.getExpensesFiltered({
+      churchId,
+      fundId,
+      executorId,
+      startDate: start,
+      endDate: end,
+      minAmount: min,
+      maxAmount: max,
+      search,
+      limit: limitNum,
+      offset: offsetNum,
+    });
+
+    return {
+      data: expenses,
+      pagination: {
+        total,
+        limit: limitNum,
+        offset: offsetNum,
+        pages: Math.ceil(total / limitNum),
+      },
+    };
+  }
+
+  /**
+   * LISTAR MOVIMENTOS - GET /finances/movements
+   * 
+   * Query params:
+   * - fundId: ID do fundo (opcional, mostra movimentos do fundo)
+   * - startDate: Data início (opcional)
+   * - endDate: Data fim (opcional)
+   * 
+   * Resposta:
+   * Array de MovimentoFinanceiro
+   */
+  @Get('movements')
+  async getMovements(
+    @Query('fundId') fundId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('tipo') tipo?: 'ENTRADA' | 'SAIDA' | 'AJUSTE',
+    @Query('minAmount') minAmount?: string,
+    @Query('maxAmount') maxAmount?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('search') search?: string,
+    @Req() req?: any,
+  ) {
+    const churchId = req.user.churchId;
+    const limitNum = limit ? parseInt(limit, 10) : 100;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+    const min = minAmount ? Number(minAmount) : undefined;
+    const max = maxAmount ? Number(maxAmount) : undefined;
+
+    const [movements, total] = await this.movementService.getMovementsFiltered({
+      churchId,
+      fundId,
+      startDate: start,
+      endDate: end,
+      tipo,
+      minAmount: min,
+      maxAmount: max,
+      search,
+      limit: limitNum,
+      offset: offsetNum,
+    });
+
+    return {
+      data: movements,
+      pagination: {
+        total,
+        limit: limitNum,
+        offset: offsetNum,
+        pages: Math.ceil(total / limitNum),
+      },
+    };
   }
 }

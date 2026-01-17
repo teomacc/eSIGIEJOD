@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 /**
  * ENUM - Estados da Requisição
@@ -21,6 +21,21 @@ export const RequisitionState = {
 };
 
 export type RequisitionState = typeof RequisitionState[keyof typeof RequisitionState];
+
+/**
+ * ENUM - Tipo de Criador da Requisição
+ * 
+ * Rastreia quem criou a requisição
+ * Usado para determinar fluxo de aprovação
+ */
+export const RequisitionCreatorType = {
+  OBREIRO: 'OBREIRO',
+  LIDER_FINANCEIRO: 'LIDER_FINANCEIRO',
+  DIRECTOR: 'DIRECTOR',
+  PASTOR: 'PASTOR',
+};
+
+export type RequisitionCreatorType = typeof RequisitionCreatorType[keyof typeof RequisitionCreatorType];
 
 /**
  * ENUM - Categorias de Despesa
@@ -105,9 +120,19 @@ export type RequisitionMagnitude = typeof RequisitionMagnitude[keyof typeof Requ
  * - Queries sempre filtram por churchId
  */
 @Entity('requisitions')
+@Index(['churchId', 'state'])
+@Index(['fundId'])
+@Index(['requestedBy'])
+@Index(['createdAt'])
 export class Requisition {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  /**
+   * Código humano da requisição (ex: REQ-2026-123456789)
+   */
+  @Column({ nullable: true })
+  code?: string;
 
   @Column()
   churchId!: string;
@@ -118,8 +143,35 @@ export class Requisition {
   @Column()
   requestedBy!: string;
 
+  /**
+   * Tipo de criador
+   * Determina fluxo de aprovação
+   */
+  @Column('varchar', { default: RequisitionCreatorType.OBREIRO })
+  creatorType!: RequisitionCreatorType;
+
   @Column({ nullable: true })
   approvedBy!: string;
+
+  /**
+   * Nível 2 de aprovação (se requerido)
+   * Normalmente Director ou Admin
+   */
+  @Column({ nullable: true })
+  approvedByLevel2?: string;
+
+  /**
+   * Se pastor foi notificado (para transparência)
+   * Registra QUANDO foi notificado
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  notificadoPastorEm?: Date;
+
+  /**
+   * Motivo da rejeição (se rejeitada)
+   */
+  @Column('text', { nullable: true })
+  motivoRejeicao?: string;
 
   @Column({
     type: 'enum',
@@ -148,6 +200,18 @@ export class Requisition {
 
   @Column('text')
   justification!: string;
+
+  /**
+   * URLs de anexos serializados (JSON string)
+   */
+  @Column('text', { nullable: true })
+  attachments?: string;
+
+  /**
+   * Quando foi solicitada (marca o pedido)
+   */
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  requestedAt!: Date;
 
   @CreateDateColumn()
   createdAt!: Date;

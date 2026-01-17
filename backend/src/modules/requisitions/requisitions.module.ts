@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Requisition } from './entities/requisition.entity';
+import { RequisicaoHistorico } from './entities/requisition-history.entity';
 import { RequisitionsService } from './requisitions.service';
+import { RequisitionsController } from './requisitions.controller.v2';
 import { ApprovalModule } from '../approval/approval.module';
 import { AuditModule } from '../audit/audit.module';
+import { FinancesModule } from '../finances/finances.module';
 import { RequisitionsSeeder } from './requisitions.seeder';
 import { User } from '../auth/entities/user.entity';
 import { Fund } from '../finances/entities/fund.entity';
@@ -40,13 +43,14 @@ import { Fund } from '../finances/entities/fund.entity';
  */
 @Module({
   imports: [
-    // Registar Requisition entity
-    TypeOrmModule.forFeature([Requisition, User, Fund]),
-    // Importar ApprovalModule para calcular nível de aprovação
+    // Registar Requisition entities
+    TypeOrmModule.forFeature([Requisition, RequisicaoHistorico, User, Fund]),
+    // Importar módulos
     ApprovalModule,
-    // Importar AuditModule para registar ações
     AuditModule,
+    FinancesModule, // Para ConfigurationService e ExpenseService
   ],
+  controllers: [RequisitionsController],
   providers: [RequisitionsService, RequisitionsSeeder],
   exports: [RequisitionsService],
 })

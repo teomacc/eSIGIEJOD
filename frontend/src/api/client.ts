@@ -140,6 +140,10 @@ export const api = {
       attachments?: string[];
     }) => apiClient.post('/finances/income', data),
     listFunds: () => apiClient.get('/finances/funds'),
+    listExpenses: (params: Record<string, any>) =>
+      apiClient.get('/finances/expenses', { params }),
+    listMovements: (params: Record<string, any>) =>
+      apiClient.get('/finances/movements', { params }),
     getRevenues: () => apiClient.get('/finances/revenues'),
     recordRevenue: (payload: any) => apiClient.post('/finances/revenues', payload),
     getDailyRevenues: (date: string) =>
@@ -159,25 +163,27 @@ export const api = {
    */
   requisitions: {
     list: () => apiClient.get('/requisitions'),
-    getPending: () => apiClient.get('/requisitions/pending'),
+    listByStatus: (status: 'pending' | 'under-review' | 'approved' | 'executed') =>
+      apiClient.get(`/requisitions/status/${status}`),
     getById: (id: string) => apiClient.get(`/requisitions/${id}`),
     create: (data: {
       fundId: string;
-      category: string;
-      requestedAmount: number;
-      justification: string;
-      attachments?: string[];
+      categoria: string;
+      valor: number;
+      motivo: string;
+      creatorType?: string;
     }) => apiClient.post('/requisitions', data),
     submit: (id: string) =>
-      apiClient.put(`/requisitions/${id}/submit`, {}),
+      apiClient.patch(`/requisitions/${id}/submit`, {}),
     approve: (id: string, approvedAmount?: number) =>
-      apiClient.put(`/requisitions/${id}/approve`, { approvedAmount }),
-    reject: (id: string, reason: string) =>
-      apiClient.put(`/requisitions/${id}/reject`, { reason }),
-    execute: (id: string) =>
-      apiClient.put(`/requisitions/${id}/execute`, {}),
-    cancel: (id: string) =>
-      apiClient.put(`/requisitions/${id}/cancel`, {}),
+      apiClient.patch(`/requisitions/${id}/approve`, { approvedAmount }),
+    approveLevel2: (id: string, approvedAmount?: number) =>
+      apiClient.patch(`/requisitions/${id}/approve-level2`, { approvedAmount }),
+    reject: (id: string, motivo: string) =>
+      apiClient.patch(`/requisitions/${id}/reject`, { motivo }),
+    execute: (id: string, payload: { dataPagamento: string; comprovativoUrl?: string; observacoes?: string }) =>
+      apiClient.patch(`/requisitions/${id}/execute`, payload),
+    acknowledgePastor: (id: string) => apiClient.patch(`/requisitions/${id}/acknowledge-pastor`, {}),
   },
 
   /**

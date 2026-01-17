@@ -5,8 +5,14 @@ import { Fund } from './entities/fund.entity';
 import { Worship } from './entities/worship.entity';
 import { Revenue } from './entities/revenue.entity';
 import { RevenueFund } from './entities/revenue-fund.entity';
+import { ConfiguracaoFinanceira } from './entities/configuration.entity';
+import { Despesa } from './entities/expense.entity';
+import { MovimentoFinanceiro } from './entities/financial-movement.entity';
 import { AuditModule } from '../audit/audit.module';
 import { FinancesService } from './finances.service';
+import { ConfigurationService } from './configuration.service';
+import { ExpenseService } from './expense.service';
+import { FinancialMovementService } from './financial-movement.service';
 import { FinancesController } from './finances.controller';
 import { FinancesSeeder } from './finances.seeder';
 import { User } from '../auth/entities/user.entity';
@@ -37,12 +43,33 @@ import { User } from '../auth/entities/user.entity';
 @Module({
   imports: [
     // Registar entities para TypeORM gerenciar
-    TypeOrmModule.forFeature([Income, Fund, Worship, Revenue, RevenueFund, User]),
+    TypeOrmModule.forFeature([
+      Income,
+      Fund,
+      Worship,
+      Revenue,
+      RevenueFund,
+      ConfiguracaoFinanceira,
+      Despesa,
+      MovimentoFinanceiro,
+      User,
+    ]),
     AuditModule,
   ],
   controllers: [FinancesController],
-  providers: [FinancesService, FinancesSeeder],
-  // Exportar FinancesService para ser utilizado por outros módulos
-  exports: [FinancesService],
+  providers: [
+    FinancesService,
+    ConfigurationService,
+    ExpenseService,
+    FinancialMovementService,
+    FinancesSeeder,
+  ],
+  // Exportar services para serem utilizados por outros módulos
+  exports: [
+    FinancesService,
+    ConfigurationService,
+    ExpenseService,
+    FinancialMovementService,
+  ],
 })
 export class FinancesModule {}
