@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Requisition, RequisitionState, RequisitionMagnitude, ExpenseCategory, RequisitionCreatorType } from './entities/requisition.entity';
-import { ApprovalService } from '../approval/approval.service';
+import { ApprovalService, ApprovalLevel } from '../approval/approval.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+import { UserRole } from '../auth/entities/user.entity';
 
 /**
  * SERVIÇO DE REQUISIÇÕES (RequisitionsService)
@@ -106,8 +107,9 @@ export class RequisitionsService {
     const magnitude = this.calculateMagnitude(data.requestedAmount);
 
     // Determinar nível de aprovação necessário
-    const approvalLevel = this.approvalService.calculateApprovalLevel(
+    const approvalLevel = await this.approvalService.calculateApprovalLevel(
       data.requestedAmount,
+      churchId,
     );
 
     // Gerar código único
@@ -171,15 +173,22 @@ export class RequisitionsService {
   async submitForReview(
     requisitionId: string,
     userId: string,
+    churchId?: string,
+    roles?: string[],
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     // Validar transição
     if (!requisition.canTransitionTo(RequisitionState.UNDER_REVIEW)) {
@@ -235,22 +244,38 @@ export class RequisitionsService {
   async approveRequisition(
     requisitionId: string,
     userId: string,
+    roles: string[],
+    churchId?: string,
     approvedAmount?: number,
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
 
+    this.ensureChurchScope(requisition, churchId, roles);
+
     // Validar estado
     if (!requisition.canTransitionTo(RequisitionState.APPROVED)) {
       throw new BadRequestException(
         `Não pode aprovar requisição em estado ${requisition.state}`,
       );
+    }
+
+    const approvalLevel = await this.approvalService.calculateApprovalLevel(
+      Number(requisition.requestedAmount),
+      requisition.churchId,
+    );
+
+    if (!this.approvalService.canApproveAtLevel(roles, approvalLevel)) {
+      throw new ForbiddenException('Utilizador sem permissão para este nível de aprovação');
     }
 
     // Validar montante
@@ -264,8 +289,17 @@ export class RequisitionsService {
     // Atualizar
     requisition.state = RequisitionState.APPROVED;
     requisition.approvedAmount = finalAmount;
-    requisition.approvedBy = userId;
     requisition.approvedAt = new Date();
+
+    if (approvalLevel === ApprovalLevel.LOCAL_FINANCE) {
+      requisition.approvedBy = userId;
+    } else if (approvalLevel === ApprovalLevel.LOCAL_PASTOR) {
+      requisition.approvedByLevel2 = userId;
+      requisition.approvedBy = requisition.approvedBy || userId;
+    } else {
+      requisition.approvedByLevel3 = userId;
+      requisition.approvedBy = requisition.approvedBy || userId;
+    }
 
     const updated = await this.requisitionsRepository.save(requisition);
 
@@ -317,16 +351,23 @@ export class RequisitionsService {
   async rejectRequisition(
     requisitionId: string,
     userId: string,
+    roles: string[],
+    churchId: string | undefined,
     reason: string,
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     // Validar estado
     if (!requisition.canTransitionTo(RequisitionState.REJECTED)) {
@@ -337,7 +378,7 @@ export class RequisitionsService {
 
     // Atualizar
     requisition.state = RequisitionState.REJECTED;
-    requisition.rejectionReason = reason;
+    requisition.motivoRejeicao = reason;
     requisition.approvedBy = userId;
     requisition.approvedAt = new Date();
 
@@ -381,15 +422,22 @@ export class RequisitionsService {
   async executeRequisition(
     requisitionId: string,
     userId: string,
+    roles: string[],
+    churchId?: string,
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     // Validar estado
     if (requisition.state !== RequisitionState.APPROVED) {
@@ -437,15 +485,22 @@ export class RequisitionsService {
   async cancelRequisition(
     requisitionId: string,
     userId: string,
+    roles: string[],
+    churchId?: string,
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     // Validar estado
     if (!requisition.canTransitionTo(RequisitionState.CANCELLED)) {
@@ -517,14 +572,23 @@ export class RequisitionsService {
   /**
    * OBTER REQUISIÇÃO - getRequisition()
    */
-  async getRequisition(requisitionId: string): Promise<Requisition> {
+  async getRequisition(
+    requisitionId: string,
+    churchId?: string,
+    roles?: string[],
+  ): Promise<Requisition> {
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     return requisition;
   }
@@ -622,16 +686,23 @@ export class RequisitionsService {
   async approveLevel2(
     requisitionId: string,
     userId: string,
+    roles?: string[],
+    churchId?: string,
     approvedAmount?: number,
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     // Validar estado
     if (requisition.state !== RequisitionState.UNDER_REVIEW) {
@@ -687,15 +758,22 @@ export class RequisitionsService {
   async markAsExecuted(
     requisitionId: string,
     userId: string,
+    roles?: string[],
+    churchId?: string,
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     // Atualizar
     requisition.state = RequisitionState.EXECUTED;
@@ -729,15 +807,22 @@ export class RequisitionsService {
   async notifyPastor(
     requisitionId: string,
     userId: string,
+    roles?: string[],
+    churchId?: string,
   ): Promise<Requisition> {
     // Buscar requisição
     const requisition = await this.requisitionsRepository.findOne({
-      where: { id: requisitionId },
+      where: {
+        id: requisitionId,
+        ...(this.isGlobal(roles) ? {} : { churchId }),
+      },
     });
 
     if (!requisition) {
       throw new BadRequestException('Requisição não encontrada');
     }
+
+    this.ensureChurchScope(requisition, churchId, roles);
 
     // Atualizar
     requisition.notificadoPastorEm = new Date();
@@ -779,5 +864,35 @@ export class RequisitionsService {
         createdAt: 'DESC',
       },
     });
+  }
+
+  private isGlobal(roles?: string[]): boolean {
+    const effective = roles || [];
+    const globalRoles = [
+      UserRole.ADMIN,
+      UserRole.LIDER_FINANCEIRO_GERAL,
+      UserRole.PASTOR_PRESIDENTE,
+      UserRole.PASTOR,
+    ];
+
+    return effective.some((role) => globalRoles.includes(role as UserRole));
+  }
+
+  private ensureChurchScope(
+    requisition: Requisition,
+    churchId?: string,
+    roles?: string[],
+  ) {
+    if (this.isGlobal(roles)) {
+      return;
+    }
+
+    if (!churchId) {
+      throw new ForbiddenException('Utilizador sem igreja associada para esta operação');
+    }
+
+    if (requisition.churchId !== churchId) {
+      throw new ForbiddenException('Acesso negado a requisição de outra igreja');
+    }
   }
 }

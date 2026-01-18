@@ -1,10 +1,12 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserRole, FuncaoMinisterial, Sexo, EstadoCivil, Provincia, Departamento } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto, RegisterResponseDto } from './dto/register.dto';
+import { CreateFirstAdminDto } from './dto/create-first-admin.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * SERVIÇO DE AUTENTICAÇÃO (AuthService)
@@ -128,34 +130,79 @@ export class AuthService {
     registerDto: RegisterDto,
     currentUser: any,
   ): Promise<RegisterResponseDto> {
-    // 1. VALIDAR PERMISSÕES
-    // Apenas DIRECTOR e TREASURER podem registar novos usuários
-    const allowedRoles = ['DIRECTOR', 'TREASURER'];
-    const hasPermission = currentUser.roles.some(role => 
-      allowedRoles.includes(role)
+    // 1. VALIDAR PERMISSÕES DE REGISTRO
+    // Define hierarquia: quem pode registar quem
+    const registrationHierarchy = {
+      [UserRole.ADMIN]: [
+        UserRole.ADMIN,
+        UserRole.PASTOR_PRESIDENTE,
+        UserRole.LIDER_FINANCEIRO_GERAL,
+        UserRole.PASTOR_LOCAL,
+        UserRole.LIDER_FINANCEIRO_LOCAL,
+        UserRole.OBREIRO,
+      ],
+      [UserRole.PASTOR_PRESIDENTE]: [
+        UserRole.PASTOR_LOCAL,
+        UserRole.LIDER_FINANCEIRO_LOCAL,
+        UserRole.OBREIRO,
+      ],
+      [UserRole.LIDER_FINANCEIRO_GERAL]: [
+        UserRole.LIDER_FINANCEIRO_LOCAL,
+        UserRole.OBREIRO,
+      ],
+      [UserRole.PASTOR_LOCAL]: [UserRole.OBREIRO],
+      [UserRole.LIDER_FINANCEIRO_LOCAL]: [UserRole.OBREIRO],
+      [UserRole.OBREIRO]: [], // OBREIRO não pode registar ninguém
+    };
+
+    // Verificar se usuário tem permissão para registar
+    const userRoles = currentUser.roles || [];
+    let canRegister = false;
+    let allowedRolesToRegister: string[] = [];
+
+    for (const role of userRoles) {
+      if (registrationHierarchy[role]) {
+        allowedRolesToRegister.push(...registrationHierarchy[role]);
+        canRegister = true;
+      }
+    }
+
+    if (!canRegister) {
+      throw new ForbiddenException(
+        'Você não tem permissão para registar novos usuários'
+      );
+    }
+
+    // 2. VALIDAR ROLES DO NOVO USUÁRIO
+    // O novo usuário só pode ter roles que o registador pode atribuir
+    const newUserRoles = registerDto.roles || [UserRole.OBREIRO];
+    const hasInvalidRole = newUserRoles.some(role => 
+      !allowedRolesToRegister.includes(role)
     );
 
-    if (!hasPermission) {
+    if (hasInvalidRole) {
       throw new ForbiddenException(
-        'Apenas Directores e Tesoureiros podem registar novos usuários'
+        `Você não pode atribuir um ou mais papéis. Papéis permitidos: ${allowedRolesToRegister.join(', ')}`
       );
     }
 
-    // 2. VALIDAR IGREJA
-    // Só pode registar usuários da sua própria igreja
-    if (registerDto.churchId !== currentUser.churchId) {
+    // 3. VALIDAR IGREJA
+    // ADMINs podem registar em qualquer igreja
+    // Outros devem registar na sua própria igreja
+    if (!userRoles.includes(UserRole.ADMIN) && registerDto.churchId !== currentUser.churchId) {
       throw new ForbiddenException(
-        'Só pode registar usuários da sua própria igreja'
+        'Você só pode registar usuários da sua própria igreja'
       );
     }
 
-    // 3. VALIDAR EMAIL ÚNICO
+    // 4. VALIDAR EMAIL ÚNICO
     const existingUser = await this.usersRepository.findOne({
       where: { email: registerDto.email },
     });
 
     if (existingUser) {
       throw new ConflictException('Email já está registado');
+
     }
 
     // 4. VALIDAR PASSWORD
@@ -195,7 +242,7 @@ export class AuthService {
       username: registerDto.username || registerDto.email.split('@')[0],
       passwordHash: hashedPassword,
       roles: registerDto.roles || [UserRole.VIEWER],
-      ativo: true,
+      ativo: registerDto.ativo !== false, // Permitir que o DTO controle se é ativo
       
       // Ministerial
       funcaoMinisterial: (registerDto.funcaoMinisterial as FuncaoMinisterial) || FuncaoMinisterial.MEMBRO,
@@ -227,9 +274,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * VALIDAR USUÁRIO - Valida email + password
-   * 
   /**
    * VALIDAR USUÁRIO - Valida email + password
    * 
@@ -288,4 +332,190 @@ export class AuthService {
     };
     return this.jwtService.sign(payload);
   }
+
+  /**
+   * CRIAR PRIMEIRO ADMIN - createFirstAdmin()
+   * 
+   * Endpoint de setup inicial para produção (sem seeding automático)
+   * 
+   * Restrições de Segurança:
+   * 1. Só funciona se NÃO existir nenhum usuário na BD
+   * 2. Cria admin com role ADMIN
+   * 3. Gera churchId próprio (admin é global)
+   * 4. Requer dados completos (nome, email, username, password)
+   * 
+   * Uso:
+   * POST /auth/setup/create-first-admin
+   * {
+   *   "nomeCompleto": "Administrador",
+   *   "email": "admin@igreja.com",
+   *   "username": "admin",
+   *   "password": "SecurePass123!",
+   *   "telefone": "+258 84 000 0000",
+   *   "cidade": "Maputo"
+   * }
+   * 
+   * Retorna:
+   * {
+   *   "success": true,
+   *   "message": "Admin criado com sucesso",
+   *   "user": { id, email, roles, churchId, ... }
+   * }
+   * 
+   * Se já existir algum usuário, retorna erro 403 Forbidden
+   */
+  async createFirstAdmin(dto: CreateFirstAdminDto) {
+    // 1. VALIDAR QUE NÃO EXISTEM USUÁRIOS
+    const userCount = await this.usersRepository.count();
+    if (userCount > 0) {
+      throw new ForbiddenException(
+        'Sistema já tem usuários. Use /auth/register para criar novos usuários.',
+      );
+    }
+
+    // 2. VALIDAR EMAIL ÚNICO
+    const existingUser = await this.usersRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (existingUser) {
+      throw new ConflictException('Email já está registado');
+    }
+
+    // 3. VALIDAR USERNAME ÚNICO
+    const existingUsername = await this.usersRepository.findOne({
+      where: { username: dto.username },
+    });
+    if (existingUsername) {
+      throw new ConflictException('Username já está registado');
+    }
+
+    // 4. HASHEAR PASSWORD
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(dto.password, saltRounds);
+
+    // 5. CRIAR USUÁRIO ADMIN
+    const admin = this.usersRepository.create({
+      // Identificação
+      nomeCompleto: dto.nomeCompleto,
+      apelido: dto.nomeCompleto.split(' ').pop() || 'Admin',
+      sexo: Sexo.MASCULINO,
+      nacionalidade: 'Moçambicana',
+
+      // Autenticação
+      email: dto.email,
+      username: dto.username,
+      passwordHash,
+      roles: [UserRole.ADMIN, UserRole.PASTOR_PRESIDENTE, UserRole.LIDER_FINANCEIRO_GERAL],
+      ativo: true,
+
+      // Contactos
+      telefone: dto.telefone,
+      cidade: dto.cidade,
+      provincia: Provincia.MAPUTO_PROVINCIA,
+
+      // Ministerial
+      funcaoMinisterial: FuncaoMinisterial.PASTOR,
+      igrejaLocal: 'Admin Global',
+      ativoNoMinisterio: true,
+
+      // Administrativo
+      churchId: uuidv4(), // Admin tem sua própria churchId (global)
+      departamento: Departamento.ADMINISTRACAO,
+      nivelAprovacao: 999,
+      assinaDocumentos: true,
+      limiteFinanceiro: 999999999,
+
+      // Auditoria
+      observacoes: 'Admin criado manualmente no setup inicial. Altere a password no primeiro login!',
+    });
+
+    const savedAdmin = await this.usersRepository.save(admin);
+
+    // 6. RETORNAR
+    return {
+      success: true,
+      message: 'Admin criado com sucesso!',
+      user: {
+        id: savedAdmin.id,
+        email: savedAdmin.email,
+        username: savedAdmin.username,
+        nomeCompleto: savedAdmin.nomeCompleto,
+        roles: savedAdmin.roles,
+        churchId: savedAdmin.churchId,
+      },
+    };
+  }
+
+  /**
+   * LISTAR UTILIZADORES - Para seleção em formulários
+   * 
+   * Retorna lista simplificada de utilizadores
+   * com id, name, email e roles
+   */
+  async listUsers() {
+    const users = await this.usersRepository.find({
+      select: ['id', 'nomeCompleto', 'email', 'roles'],
+      where: { ativo: true },
+      order: { nomeCompleto: 'ASC' },
+    });
+
+    // Mapear para formato esperado pelo frontend
+    return users.map(user => ({
+      id: user.id,
+      name: user.nomeCompleto,
+      email: user.email,
+      roles: user.roles,
+    }));
+  }
+
+  /**
+   * LISTAR TODOS OS UTILIZADORES - Para página de gestão
+   * 
+   * Retorna lista completa com todos os utilizadores (activos e inactivos)
+   * com informações detalhadas
+   */
+  async listAllUsers() {
+    const users = await this.usersRepository.find({
+      select: ['id', 'nomeCompleto', 'email', 'username', 'roles', 'ativo', 'churchId'],
+      order: { nomeCompleto: 'ASC' },
+    });
+
+    return users.map(user => ({
+      id: user.id,
+      nomeCompleto: user.nomeCompleto,
+      email: user.email,
+      username: user.username,
+      roles: user.roles,
+      ativo: user.ativo,
+      churchId: user.churchId,
+    }));
+  }
+
+  /**
+   * ACTUALIZAR UTILIZADOR - Desactivar/Activar
+   */
+  async updateUser(userId: string, updateData: { ativo?: boolean }) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    if (updateData.ativo !== undefined) {
+      user.ativo = updateData.ativo;
+    }
+
+    const updated = await this.usersRepository.save(user);
+
+    return {
+      id: updated.id,
+      nomeCompleto: updated.nomeCompleto,
+      email: updated.email,
+      ativo: updated.ativo,
+      message: updateData.ativo ? 'Utilizador activado com sucesso' : 'Utilizador desactivado com sucesso',
+    };
+  }
 }
+

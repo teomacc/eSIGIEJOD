@@ -6,12 +6,17 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
  */
 export enum UserRole {
   ADMIN = 'ADMIN',
+  OBREIRO = 'OBREIRO',
+  PASTOR_LOCAL = 'PASTOR_LOCAL',
+  LIDER_FINANCEIRO_LOCAL = 'LIDER_FINANCEIRO_LOCAL',
+  PASTOR_PRESIDENTE = 'PASTOR_PRESIDENTE',
+  LIDER_FINANCEIRO_GERAL = 'LIDER_FINANCEIRO_GERAL',
+  VIEWER = 'VIEWER',
+  // Legado (manter para compatibilidade, mas preferir os novos)
   PASTOR = 'PASTOR',
   DIRECTOR = 'DIRECTOR',
   TREASURER = 'TREASURER',
   AUDITOR = 'AUDITOR',
-  OBREIRO = 'OBREIRO',
-  VIEWER = 'VIEWER',
 }
 
 /**
@@ -196,8 +201,8 @@ export class User {
   // 5️⃣ RESPONSABILIDADES ADMINISTRATIVAS
   // ========================================================================
 
-  @Column('uuid')
-  churchId!: string;
+  @Column('uuid', { nullable: true })
+  churchId?: string;
 
   @Column({ type: 'enum', enum: Departamento, nullable: true })
   departamento?: Departamento;

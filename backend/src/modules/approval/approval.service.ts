@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ConfigurationService } from '../finances/configuration.service';
+import { UserRole } from '../auth/entities/user.entity';
 
 /**
  * ENUM - Níveis de Aprovação
@@ -10,10 +12,10 @@ import { ConfigService } from '@nestjs/config';
  * TREASURER < DIRECTOR < BOARD < PASTOR
  */
 export const ApprovalLevel = {
-  TREASURER: 'TREASURER', // Tesoureiro Local - até 5.000 MT
-  DIRECTOR: 'DIRECTOR', // Director Financeiro - até 20.000 MT
-  BOARD: 'BOARD', // Conselho de Direcção - até 50.000 MT
-  PASTOR: 'PASTOR', // Pastor Sénior - sem limite
+  LOCAL_FINANCE: 'LOCAL_FINANCE', // Líder financeiro local
+  LOCAL_PASTOR: 'LOCAL_PASTOR', // Pastor local
+  GLOBAL_FINANCE: 'GLOBAL_FINANCE', // Líder financeiro geral
+  PRESIDENT: 'PRESIDENT', // Pastor presidente / Admin
 } as const;
 
 export type ApprovalLevel = typeof ApprovalLevel[keyof typeof ApprovalLevel];
@@ -41,7 +43,10 @@ export type ApprovalLevel = typeof ApprovalLevel[keyof typeof ApprovalLevel];
  */
 @Injectable()
 export class ApprovalService {
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private configurationService: ConfigurationService,
+  ) {}
 
   /**
    * CALCULAR NÍVEL DE APROVAÇÃO
@@ -63,24 +68,31 @@ export class ApprovalService {
    * TODO: Obter thresholds de configuração BD em vez de hardcodeados
    * const treasurerLimit = await configService.get('APPROVAL_TREASURER_LIMIT');
    */
-  calculateApprovalLevel(amount: number): ApprovalLevel {
-    // Thresholds de aprovação (valores em Meticais)
-    // TODO: Mover para configuração BD
-    const treasurerLimit = 5000; // Até 5.000 MT
-    const directorLimit = 20000; // Até 20.000 MT
-    const boardLimit = 50000; // Até 50.000 MT
-    // Sem limite para PASTOR
+  async calculateApprovalLevel(amount: number, churchId?: string): Promise<ApprovalLevel> {
+    const localConfig = churchId
+      ? await this.configurationService.getConfiguration(churchId)
+      : null;
 
-    // Lógica de determinação de nível
-    if (amount <= treasurerLimit) {
-      return ApprovalLevel.TREASURER;
-    } else if (amount <= directorLimit) {
-      return ApprovalLevel.DIRECTOR;
-    } else if (amount <= boardLimit) {
-      return ApprovalLevel.BOARD;
-    } else {
-      return ApprovalLevel.PASTOR;
+    const localLimit = localConfig
+      ? Number(localConfig.limiteMaxPorRequisicao)
+      : Number(this.configService.get<number>('APPROVAL_LOCAL_LIMIT') ?? 50000);
+
+    const lfgLimit = Number(this.configService.get<number>('APPROVAL_LFG_LIMIT') ?? 200000);
+    const presidentLimit = this.configService.get<number>('APPROVAL_PRESIDENT_LIMIT');
+
+    if (amount <= localLimit) {
+      return ApprovalLevel.LOCAL_FINANCE;
     }
+
+    if (amount <= lfgLimit) {
+      return ApprovalLevel.LOCAL_PASTOR;
+    }
+
+    if (presidentLimit && amount > presidentLimit) {
+      return ApprovalLevel.PRESIDENT;
+    }
+
+    return ApprovalLevel.GLOBAL_FINANCE;
   }
 
   /**
@@ -114,23 +126,35 @@ export class ApprovalService {
     userRoles: string[],
     requiredLevel: ApprovalLevel,
   ): boolean {
-    // Mapeamento: para cada nível, quem pode aprovar?
-    // Pessoas em roles superiores podem aprovar requisições de níveis inferiores
     const roleHierarchy: { [key in ApprovalLevel]: string[] } = {
-      // Para TREASURER level, podem aprovar: TREASURER, DIRECTOR, BOARD, PASTOR
-      [ApprovalLevel.TREASURER]: ['TREASURER', 'DIRECTOR', 'BOARD', 'PASTOR'],
-      // Para DIRECTOR level, podem aprovar: DIRECTOR, BOARD, PASTOR
-      [ApprovalLevel.DIRECTOR]: ['DIRECTOR', 'BOARD', 'PASTOR'],
-      // Para BOARD level, podem aprovar: BOARD, PASTOR
-      [ApprovalLevel.BOARD]: ['BOARD', 'PASTOR'],
-      // Para PASTOR level, podem aprovar: PASTOR
-      [ApprovalLevel.PASTOR]: ['PASTOR'],
+      [ApprovalLevel.LOCAL_FINANCE]: [
+        UserRole.LIDER_FINANCEIRO_LOCAL,
+        UserRole.PASTOR_LOCAL,
+        UserRole.LIDER_FINANCEIRO_GERAL,
+        UserRole.PASTOR_PRESIDENTE,
+        UserRole.ADMIN,
+        UserRole.TREASURER,
+        UserRole.DIRECTOR,
+        UserRole.PASTOR,
+      ],
+      [ApprovalLevel.LOCAL_PASTOR]: [
+        UserRole.PASTOR_LOCAL,
+        UserRole.LIDER_FINANCEIRO_GERAL,
+        UserRole.PASTOR_PRESIDENTE,
+        UserRole.ADMIN,
+        UserRole.PASTOR,
+      ],
+      [ApprovalLevel.GLOBAL_FINANCE]: [
+        UserRole.LIDER_FINANCEIRO_GERAL,
+        UserRole.PASTOR_PRESIDENTE,
+        UserRole.ADMIN,
+        UserRole.DIRECTOR,
+        UserRole.BOARD,
+      ],
+      [ApprovalLevel.PRESIDENT]: [UserRole.PASTOR_PRESIDENTE, UserRole.ADMIN, UserRole.PASTOR],
     };
 
-    // Obter lista de roles autorizados para este nível
     const authorizedRoles = roleHierarchy[requiredLevel] || [];
-
-    // Verificar se usuário tem um dos roles autorizados
     return userRoles.some((role) => authorizedRoles.includes(role));
   }
 
@@ -190,11 +214,12 @@ export class ApprovalService {
    * const canApprove = approvalService.canApproveAmount(req.user.roles, 15000);
    * if (!canApprove) throw new UnauthorizedException();
    */
-  canApproveAmount(userRoles: string[], amount: number): boolean {
-    // 1. Determinar nível necessário para este montante
-    const requiredLevel = this.calculateApprovalLevel(amount);
-
-    // 2. Verificar se usuário tem autoridade para este nível
+  async canApproveAmount(
+    userRoles: string[],
+    amount: number,
+    churchId?: string,
+  ): Promise<boolean> {
+    const requiredLevel = await this.calculateApprovalLevel(amount, churchId);
     return this.canApproveAtLevel(userRoles, requiredLevel);
   }
 
@@ -215,16 +240,34 @@ export class ApprovalService {
    * Uso em frontend:
    * Mostrar ao usuário quem pode aprovar a requisição
    */
-  getAuthorizedRoles(amount: number): string[] {
-    // Determinar nível necessário
-    const level = this.calculateApprovalLevel(amount);
+  async getAuthorizedRoles(amount: number, churchId?: string): Promise<string[]> {
+    const level = await this.calculateApprovalLevel(amount, churchId);
 
-    // Retornar roles autorizados
     const roleHierarchy: { [key in ApprovalLevel]: string[] } = {
-      [ApprovalLevel.TREASURER]: ['TREASURER', 'DIRECTOR', 'BOARD', 'PASTOR'],
-      [ApprovalLevel.DIRECTOR]: ['DIRECTOR', 'BOARD', 'PASTOR'],
-      [ApprovalLevel.BOARD]: ['BOARD', 'PASTOR'],
-      [ApprovalLevel.PASTOR]: ['PASTOR'],
+      [ApprovalLevel.LOCAL_FINANCE]: [
+        UserRole.LIDER_FINANCEIRO_LOCAL,
+        UserRole.PASTOR_LOCAL,
+        UserRole.LIDER_FINANCEIRO_GERAL,
+        UserRole.PASTOR_PRESIDENTE,
+        UserRole.ADMIN,
+        UserRole.TREASURER,
+        UserRole.DIRECTOR,
+        UserRole.PASTOR,
+      ],
+      [ApprovalLevel.LOCAL_PASTOR]: [
+        UserRole.PASTOR_LOCAL,
+        UserRole.LIDER_FINANCEIRO_GERAL,
+        UserRole.PASTOR_PRESIDENTE,
+        UserRole.ADMIN,
+        UserRole.PASTOR,
+      ],
+      [ApprovalLevel.GLOBAL_FINANCE]: [
+        UserRole.LIDER_FINANCEIRO_GERAL,
+        UserRole.PASTOR_PRESIDENTE,
+        UserRole.ADMIN,
+        UserRole.BOARD,
+      ],
+      [ApprovalLevel.PRESIDENT]: [UserRole.PASTOR_PRESIDENTE, UserRole.ADMIN, UserRole.PASTOR],
     };
 
     return roleHierarchy[level] || [];

@@ -5,9 +5,10 @@
  * Organizado em 4 tabs: Identificação, Ministerial, Contactos, Sistema
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/api/client';
 import '../styles/RegisterPage.css';
 
 interface FormData {
@@ -29,6 +30,9 @@ interface FormData {
   liderDireto: string;
   ativoNoMinisterio: boolean;
   
+  // Sistema (agora aqui também)
+  ativo: boolean;
+  
   // Contactos
   telefone: string;
   email: string;
@@ -49,6 +53,9 @@ export default function RegisterPageComplete() {
   const { user, isLoading, error: authError, register, hasRole } = useAuth();
   
   const [currentTab, setCurrentTab] = useState<'identificacao' | 'ministerial' | 'contactos' | 'sistema'>('identificacao');
+  const [igrejas, setIgrejas] = useState<any[]>([]);
+  const [loadingIgrejas, setLoadingIgrejas] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<Array<{value: string, label: string}>>([]);
   
   const [formData, setFormData] = useState<FormData>({
     // Identificação
@@ -80,26 +87,97 @@ export default function RegisterPageComplete() {
     username: '',
     password: '',
     confirmPassword: '',
-    roles: ['VIEWER'],
+    roles: ['OBREIRO'],
     departamento: '',
+    ativo: true,
   });
 
   const [errors, setErrors] = useState<any>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    minLength: false,
+    hasUpperCase: false,
+    hasNumber: false,
+  });
 
-  // Verificar permissão
-  if (!user || (!hasRole('DIRECTOR') && !hasRole('TREASURER') && !hasRole('ADMIN'))) {
-    return (
-      <div className="register-container">
-        <div className="register-error">
-          <h1>Acesso Negado</h1>
-          <p>Apenas Administradores, Directores e Tesoureiros podem registar novos usuários.</p>
-          <button onClick={() => navigate('/')}>Voltar ao Dashboard</button>
-        </div>
-      </div>
-    );
-  }
+  // Carregar igrejas ao montar o componente
+  useEffect(() => {
+    loadIgrejas();
+    calculateAvailableRoles();
+  }, [user]);
+
+  const loadIgrejas = async () => {
+    try {
+      setLoadingIgrejas(true);
+      const response = await api.churches.getAll();
+      setIgrejas(response.data || []);
+    } catch (err) {
+      console.error('Erro ao carregar igrejas:', err);
+    } finally {
+      setLoadingIgrejas(false);
+    }
+  };
+
+  const calculateAvailableRoles = () => {
+    // Hierarquia de papéis que cada role pode atribuir
+    const roleHierarchy: {[key: string]: string[]} = {
+      'ADMIN': [
+        'ADMIN',
+        'PASTOR_PRESIDENTE',
+        'LIDER_FINANCEIRO_GERAL',
+        'PASTOR_LOCAL',
+        'LIDER_FINANCEIRO_LOCAL',
+        'OBREIRO',
+      ],
+      'PASTOR_PRESIDENTE': [
+        'PASTOR_LOCAL',
+        'LIDER_FINANCEIRO_LOCAL',
+        'OBREIRO',
+      ],
+      'LIDER_FINANCEIRO_GERAL': [
+        'LIDER_FINANCEIRO_LOCAL',
+        'OBREIRO',
+      ],
+      'PASTOR_LOCAL': ['OBREIRO'],
+      'LIDER_FINANCEIRO_LOCAL': ['OBREIRO'],
+      'OBREIRO': [],
+    };
+
+    // Mapear para labels
+    const roleLabels: {[key: string]: string} = {
+      'ADMIN': 'Administrador',
+      'PASTOR_PRESIDENTE': 'Pastor Presidente',
+      'LIDER_FINANCEIRO_GERAL': 'Líder Financeiro Geral',
+      'PASTOR_LOCAL': 'Pastor Local',
+      'LIDER_FINANCEIRO_LOCAL': 'Líder Financeiro Local',
+      'OBREIRO': 'Obreiro',
+    };
+
+    // Determinar roles disponíveis com base no papel do utilizador
+    let available: string[] = [];
+    if (user) {
+      for (const role of user.roles || []) {
+        if (roleHierarchy[role]) {
+          available.push(...roleHierarchy[role]);
+        }
+      }
+      // Remover duplicatas
+      available = [...new Set(available)];
+    }
+
+    // Converter para formato esperado
+    const rolesOptions = available.map(role => ({
+      value: role,
+      label: roleLabels[role] || role,
+    }));
+
+    setAvailableRoles(rolesOptions.length > 0 ? rolesOptions : [
+      { value: 'OBREIRO', label: 'Obreiro' },
+      { value: 'PASTOR_LOCAL', label: 'Pastor Local' },
+      { value: 'LIDER_FINANCEIRO_LOCAL', label: 'Líder Financeiro Local' },
+    ]);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -113,9 +191,18 @@ export default function RegisterPageComplete() {
             ? [...prev.roles, value]
             : prev.roles.filter(r => r !== value)
         }));
-      } else if (name === 'ativoNoMinisterio') {
-        setFormData(prev => ({ ...prev, ativoNoMinisterio: target.checked }));
+      } else if (name === 'ativoNoMinisterio' || name === 'ativo') {
+        setFormData(prev => ({ ...prev, [name]: target.checked }));
       }
+    } else if (name === 'password') {
+      // Validar requisitos de password em tempo real
+      const pwd = value;
+      setPasswordRequirements({
+        minLength: pwd.length >= 8,
+        hasUpperCase: /[A-Z]/.test(pwd),
+        hasNumber: /\d/.test(pwd),
+      });
+      setFormData(prev => ({ ...prev, [name]: value }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -127,13 +214,18 @@ export default function RegisterPageComplete() {
     // Validações básicas
     if (!formData.nomeCompleto) newErrors.nomeCompleto = 'Nome completo é obrigatório';
     if (!formData.email) newErrors.email = 'Email é obrigatório';
+    if (!formData.igrejaLocal) newErrors.igrejaLocal = 'Igreja local é obrigatória';
     if (!formData.password) newErrors.password = 'Password é obrigatória';
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords não correspondem';
     }
-    if (formData.password.length < 8) {
-      newErrors.password = 'Password deve ter pelo menos 8 caracteres';
+    
+    // Validar requisitos de password
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRegex.test(formData.password)) {
+      newErrors.password = 'Password deve ter mínimo 8 caracteres, 1 maiúscula e 1 número';
     }
+    
     if (formData.roles.length === 0) {
       newErrors.roles = 'Selecione pelo menos um papel';
     }
@@ -177,9 +269,10 @@ export default function RegisterPageComplete() {
         // Sistema
         username: formData.username || formData.email.split('@')[0],
         password: formData.password,
-        churchId: user.churchId,
+        churchId: formData.igrejaLocal, // Usar o ID da igreja selecionada
         roles: formData.roles,
         departamento: formData.departamento,
+        ativo: formData.ativo,
       });
 
       setSuccessMessage(`Usuário ${formData.nomeCompleto} registado com sucesso!`);
@@ -393,15 +486,26 @@ export default function RegisterPageComplete() {
               </div>
 
               <div className="register-form-group">
-                <label htmlFor="igrejaLocal">Igreja Local</label>
-                <input
-                  type="text"
+                <label htmlFor="igrejaLocal">Igreja Local *</label>
+                <select
                   id="igrejaLocal"
                   name="igrejaLocal"
                   value={formData.igrejaLocal}
                   onChange={handleChange}
-                  placeholder="Ex: Igreja Central de Maputo"
-                />
+                  className={errors.igrejaLocal ? 'input-error' : ''}
+                >
+                  <option value="">Selecione uma igreja...</option>
+                  {loadingIgrejas ? (
+                    <option disabled>Carregando igrejas...</option>
+                  ) : (
+                    igrejas.map(igreja => (
+                      <option key={igreja.id} value={igreja.id}>
+                        {igreja.nome} ({igreja.codigo})
+                      </option>
+                    ))
+                  )}
+                </select>
+                {errors.igrejaLocal && <span className="error-text">{errors.igrejaLocal}</span>}
               </div>
 
               <div className="register-form-group">
@@ -430,18 +534,6 @@ export default function RegisterPageComplete() {
                   <option value="Diaconia">Diaconia</option>
                   <option value="Aconselhamento">Aconselhamento</option>
                 </select>
-              </div>
-
-              <div className="register-form-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    name="ativoNoMinisterio"
-                    checked={formData.ativoNoMinisterio}
-                    onChange={handleChange}
-                  />
-                  {' '}Activo no Ministério (se inactivo, não poderá fazer requisições)
-                </label>
               </div>
             </div>
           )}
@@ -562,6 +654,20 @@ export default function RegisterPageComplete() {
                     {showPassword ? 'Ocultar' : 'Mostrar'}
                   </button>
                 </div>
+                
+                {/* Requisitos de Password */}
+                <div className="password-requirements">
+                  <div className={`requirement ${passwordRequirements.minLength ? 'met' : ''}`}>
+                    {passwordRequirements.minLength ? '✓' : '○'} Mínimo 8 caracteres
+                  </div>
+                  <div className={`requirement ${passwordRequirements.hasUpperCase ? 'met' : ''}`}>
+                    {passwordRequirements.hasUpperCase ? '✓' : '○'} Pelo menos 1 letra maiúscula
+                  </div>
+                  <div className={`requirement ${passwordRequirements.hasNumber ? 'met' : ''}`}>
+                    {passwordRequirements.hasNumber ? '✓' : '○'} Pelo menos 1 número
+                  </div>
+                </div>
+                
                 {errors.password && <span className="error-text">{errors.password}</span>}
               </div>
 
@@ -581,27 +687,37 @@ export default function RegisterPageComplete() {
 
               <div className="register-form-group">
                 <label>Papéis do Usuário *</label>
+                <p className="form-description">
+                  Selecione os papéis que o usuário pode desempenhar
+                </p>
                 <div className="roles-checkboxes">
-                  {['DIRECTOR', 'TREASURER', 'AUDITOR', 'VIEWER'].map(role => (
-                    <div key={role} className="checkbox-item">
+                  {availableRoles.map(role => (
+                    <div key={role.value} className="checkbox-item">
                       <input
                         type="checkbox"
-                        id={role}
+                        id={role.value}
                         name="roles"
-                        value={role}
-                        checked={formData.roles.includes(role)}
+                        value={role.value}
+                        checked={formData.roles.includes(role.value)}
                         onChange={handleChange}
                       />
-                      <label htmlFor={role}>
-                        {role === 'DIRECTOR' ? 'Director Financeiro' :
-                         role === 'TREASURER' ? 'Tesoureiro' :
-                         role === 'AUDITOR' ? 'Auditor' :
-                         'Visualizador'}
-                      </label>
+                      <label htmlFor={role.value}>{role.label}</label>
                     </div>
                   ))}
                 </div>
                 {errors.roles && <span className="error-text">{errors.roles}</span>}
+              </div>
+
+              <div className="register-form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    name="ativo"
+                    checked={formData.ativo}
+                    onChange={handleChange}
+                  />
+                  {' '}Usuário Activo (pode fazer login e usar o sistema)
+                </label>
               </div>
             </div>
           )}

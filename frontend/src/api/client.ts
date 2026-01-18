@@ -238,6 +238,46 @@ export const api = {
     detectAnomalies: () =>
       apiClient.get('/reports/anomalies'),
   },
+
+  /**
+   * CHURCHES - Gestão de Igrejas
+   * GET /churches
+   * GET /churches/:id
+   * POST /churches
+   * PUT /churches/:id
+   * DELETE /churches/:id
+   * PUT /churches/:id/pastor
+   * PUT /churches/:id/lider-financeiro
+   */
+  churches: {
+    getAll: () => apiClient.get('/churches'),
+    getById: (id: string) => apiClient.get(`/churches/${id}`),
+    create: (data: {
+      nome: string;
+      codigo?: string; // Opcional - gerado automaticamente no backend se não fornecido
+      pastorLocalId?: string;
+      liderFinanceiroLocalId?: string;
+    }) => apiClient.post('/churches', data),
+    update: (id: string, data: {
+      nome?: string;
+      activa?: boolean;
+      pastorLocalId?: string;
+      liderFinanceiroLocalId?: string;
+    }) => apiClient.put(`/churches/${id}`, data),
+    delete: (id: string) => apiClient.delete(`/churches/${id}`),
+    assignPastor: (id: string, pastorId: string) =>
+      apiClient.put(`/churches/${id}/pastor`, { pastorId }),
+    assignLider: (id: string, liderId: string) =>
+      apiClient.put(`/churches/${id}/lider-financeiro`, { liderId }),
+  },
+
+  /**
+   * USERS - Gestão de Utilizadores (a implementar)
+   */
+  users: {
+    getAll: () => apiClient.get('/users'),
+    getByRole: (role: string) => apiClient.get('/users/role', { params: { role } }),
+  },
 };
 
 export default apiClient;

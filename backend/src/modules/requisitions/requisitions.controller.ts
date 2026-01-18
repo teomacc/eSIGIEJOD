@@ -7,10 +7,12 @@ import {
   Body,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RequisitionsService } from './requisitions.service';
 import { Requisition, RequisitionState } from './entities/requisition.entity';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
 /**
  * CONTROLADOR DE REQUISIÇÕES (RequisitionsController)
@@ -44,7 +46,7 @@ import { Requisition, RequisitionState } from './entities/requisition.entity';
  * - Executar: TREASURER ou acima
  */
 @Controller('requisitions')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), ChurchScopeGuard)
 export class RequisitionsController {
   constructor(private requisitionsService: RequisitionsService) {}
 
@@ -101,7 +103,7 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     // Extrair informações do JWT
-    const churchId = req.user.churchId;
+    const churchId = this.resolveChurchId(req);
     const userId = req.user.sub; // 'sub' é o userId no JWT
 
     // Chamar serviço
@@ -131,8 +133,10 @@ export class RequisitionsController {
    * GET /requisitions/abc-123-def
    */
   @Get(':id')
-  async getRequisition(@Param('id') id: string): Promise<Requisition> {
-    return this.requisitionsService.getRequisition(id);
+  async getRequisition(@Param('id') id: string, @Req() req: any): Promise<Requisition> {
+    const churchId = this.resolveChurchId(req);
+    const roles = this.resolveRoles(req);
+    return this.requisitionsService.getRequisition(id, churchId, roles);
   }
 
   /**
@@ -180,7 +184,7 @@ export class RequisitionsController {
     };
   }> {
     // Extrair churchId
-    const churchId = req.user.churchId;
+    const churchId = this.resolveChurchId(req);
 
     // TODO: Implementar listar com paginação
     // Por enquanto, retornar empty array
@@ -216,7 +220,7 @@ export class RequisitionsController {
    */
   @Get('pending')
   async getPendingRequisitions(@Req() req: any): Promise<Requisition[]> {
-    const churchId = req.user.churchId;
+    const churchId = this.resolveChurchId(req);
     return this.requisitionsService.getPendingRequisitions(churchId);
   }
 
@@ -245,7 +249,9 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     const userId = req.user.sub;
-    return this.requisitionsService.submitForReview(id, userId);
+    const churchId = this.resolveChurchId(req);
+    const roles = this.resolveRoles(req);
+    return this.requisitionsService.submitForReview(id, userId, churchId, roles);
   }
 
   /**
@@ -297,9 +303,13 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     const userId = req.user.sub;
+    const roles = this.resolveRoles(req);
+    const churchId = this.resolveChurchId(req);
     return this.requisitionsService.approveRequisition(
       id,
       userId,
+      roles,
+      churchId,
       body.approvedAmount,
     );
   }
@@ -347,9 +357,13 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     const userId = req.user.sub;
+    const roles = this.resolveRoles(req);
+    const churchId = this.resolveChurchId(req);
     return this.requisitionsService.rejectRequisition(
       id,
       userId,
+      roles,
+      churchId,
       body.reason,
     );
   }
@@ -393,7 +407,14 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     const userId = req.user.sub;
-    return this.requisitionsService.executeRequisition(id, userId);
+    const churchId = this.resolveChurchId(req);
+    const roles = this.resolveRoles(req);
+    return this.requisitionsService.executeRequisition(
+      id,
+      userId,
+      roles,
+      churchId,
+    );
   }
 
   /**
@@ -430,6 +451,25 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     const userId = req.user.sub;
-    return this.requisitionsService.cancelRequisition(id, userId);
+    const churchId = this.resolveChurchId(req);
+    const roles = this.resolveRoles(req);
+    return this.requisitionsService.cancelRequisition(
+      id,
+      userId,
+      roles,
+      churchId,
+    );
+  }
+
+  private resolveChurchId(req: any): string {
+    const churchId = req.churchId || req.user?.churchId || req.query?.churchId;
+    if (!churchId) {
+      throw new BadRequestException('Necessário indicar igreja para operar');
+    }
+    return churchId;
+  }
+
+  private resolveRoles(req: any): string[] {
+    return req.user?.roles || [];
   }
 }

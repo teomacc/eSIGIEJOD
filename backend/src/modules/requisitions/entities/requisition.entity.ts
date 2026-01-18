@@ -161,6 +161,13 @@ export class Requisition {
   approvedByLevel2?: string;
 
   /**
+   * Nível 3 de aprovação (se requerido)
+   * Usado para aprovação do Líder Financeiro Geral
+   */
+  @Column({ nullable: true })
+  approvedByLevel3?: string;
+
+  /**
    * Se pastor foi notificado (para transparência)
    * Registra QUANDO foi notificado
    */

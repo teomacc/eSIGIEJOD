@@ -95,6 +95,17 @@
   letter-spacing: 0.5px;
 }
 
+/* Descrição dentro de form-group */
+.form-description {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1rem;
+  margin-top: -4px;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .register-form-group input[type='email'],
 .register-form-group input[type='text'],
 .register-form-group input[type='password'] {
@@ -204,8 +215,24 @@
   border-radius: 6px;
   padding: 12px;
   margin-top: 8px;
+  margin-bottom: 12px;
   font-size: 13px;
   color: #666;
+  border-left: 3px solid #ddd;
+}
+
+.requirement {
+  padding: 4px 0;
+  transition: all 0.2s ease;
+}
+
+.requirement.met {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.requirement::before {
+  margin-right: 6px;
 }
 
 .password-requirements p {

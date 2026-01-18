@@ -51,6 +51,13 @@ export class DatabaseSeeder implements OnModuleInit {
    * 3. Log de confirmação
    */
   async seedDatabase() {
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    
+    if (nodeEnv === 'production') {
+      console.log('⚠️  [SEED] Ambiente de PRODUÇÃO detectado. Seeding desabilitado por segurança.');
+      return;
+    }
+
     console.log('🌱 [SEED] Verificando base de dados...');
 
     try {

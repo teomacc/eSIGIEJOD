@@ -10,6 +10,8 @@ import DespesasPage from '@/pages/DespesasPage';
 import AuditPage from '@/pages/AuditPage';
 import ReportsPage from '@/pages/ReportsPage';
 import ReceitasPage from '@/pages/ReceitasPage';
+import ChurchesPage from '@/pages/ChurchesPage';
+import UsersPage from '@/pages/UsersPage';
 import '@/styles/globals.css';
 
 /**
@@ -82,6 +84,12 @@ export default function App() {
 
             {/* Receitas */}
             <Route path="/receitas" element={<ReceitasPage />} />
+            
+            {/* Igrejas - Admin */}
+            <Route path="/igrejas" element={<ChurchesPage />} />
+            
+            {/* Utilizadores - Admin */}
+            <Route path="/utilizadores" element={<UsersPage />} />
             
             {/* Auditoria */}
             <Route path="/audit" element={<AuditPage />} />

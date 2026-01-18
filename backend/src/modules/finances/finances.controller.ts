@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Req, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Req, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { FinancesService } from './finances.service';
 import { ExpenseService } from './expense.service';
 import { FinancialMovementService } from './financial-movement.service';
@@ -6,6 +6,7 @@ import { IncomeType } from './entities/income.entity';
 import { RevenueType, PaymentMethod } from './entities/revenue.entity';
 import { Weekday, WorshipType } from './entities/worship.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
 /**
  * CONTROLADOR DE FINANÇAS (FinancesController)
@@ -34,7 +35,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
  * - Token é extraído do header Authorization
  * - req.user contém: userId, email, roles, churchId
  */
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ChurchScopeGuard)
 @Controller('finances')
 export class FinancesController {
   constructor(
@@ -95,18 +96,21 @@ export class FinancesController {
     },
     @Req() req: any,
   ) {
+    const churchId = this.resolveChurchId(req);
+    const recordedBy = this.resolveUserId(req);
     // Chamar serviço para registar entrada
     // Passa churchId e userId do JWT para auditoria
     return this.financesService.recordIncome({
       ...data,
-      churchId: req.user.churchId, // Do JWT
-      recordedBy: req.user.userId, // Do JWT
+      churchId,
+      recordedBy,
     });
   }
 
   @Get('funds')
   async listFunds(@Req() req: any) {
-    return this.financesService.listActiveFunds(req.user.churchId);
+    const churchId = this.resolveChurchId(req);
+    return this.financesService.listActiveFunds(churchId);
   }
 
   @Post('revenues')
@@ -129,9 +133,11 @@ export class FinancesController {
     },
     @Req() req: any,
   ) {
+    const churchId = this.resolveChurchId(req);
+    const recordedBy = this.resolveUserId(req);
     return this.financesService.recordRevenue({
-      churchId: req.user.churchId,
-      recordedBy: req.user.userId,
+      churchId,
+      recordedBy,
       type: body.type,
       totalAmount: Number(body.totalAmount),
       paymentMethod: body.paymentMethod,
@@ -153,7 +159,8 @@ export class FinancesController {
 
   @Get('revenues')
   async getRevenues(@Req() req: any) {
-    return this.financesService.getRevenuesByChurch(req.user.churchId);
+    const churchId = this.resolveChurchId(req);
+    return this.financesService.getRevenuesByChurch(churchId);
   }
 
   @Get('revenues/daily')
@@ -161,8 +168,9 @@ export class FinancesController {
     @Query('date') date: string,
     @Req() req: any,
   ) {
+    const churchId = this.resolveChurchId(req);
     const formatted = date ?? new Date().toLocaleDateString('en-CA');
-    return this.financesService.getDailyRevenues(req.user.churchId, formatted);
+    return this.financesService.getDailyRevenues(churchId, formatted);
   }
 
   /**
@@ -188,8 +196,9 @@ export class FinancesController {
    * console.log(`Saldo: ${fund.balance} MT`);
    */
   @Get('fund/:id/balance')
-  async getFundBalance(@Param('id') fundId: string) {
-    return this.financesService.getFundBalance(fundId);
+  async getFundBalance(@Param('id') fundId: string, @Req() req: any) {
+    const churchId = this.resolveChurchId(req);
+    return this.financesService.getFundBalance(fundId, churchId);
   }
 
   /**
@@ -225,7 +234,8 @@ export class FinancesController {
    */
   @Get('income/church')
   async getIncomeByChurch(@Req() req: any) {
-    return this.financesService.getIncomeByChurch(req.user.churchId);
+    const churchId = this.resolveChurchId(req);
+    return this.financesService.getIncomeByChurch(churchId);
   }
 
   /**
@@ -245,8 +255,9 @@ export class FinancesController {
    * TODO: Calcular total de entradas
    */
   @Get('income/fund/:id')
-  async getIncomeByFund(@Param('id') fundId: string) {
-    return this.financesService.getIncomeByFund(fundId);
+  async getIncomeByFund(@Param('id') fundId: string, @Req() req: any) {
+    const churchId = this.resolveChurchId(req);
+    return this.financesService.getIncomeByFund(fundId, churchId);
   }
 
   /**
@@ -276,7 +287,7 @@ export class FinancesController {
     @Query('search') search?: string,
     @Req() req?: any,
   ) {
-    const churchId = req.user.churchId;
+    const churchId = this.resolveChurchId(req);
     const limitNum = limit ? parseInt(limit, 10) : 100;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     const min = minAmount ? Number(minAmount) : undefined;
@@ -331,7 +342,7 @@ export class FinancesController {
     @Query('search') search?: string,
     @Req() req?: any,
   ) {
-    const churchId = req.user.churchId;
+    const churchId = this.resolveChurchId(req);
     const limitNum = limit ? parseInt(limit, 10) : 100;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     const start = startDate ? new Date(startDate) : undefined;
@@ -361,5 +372,17 @@ export class FinancesController {
         pages: Math.ceil(total / limitNum),
       },
     };
+  }
+
+  private resolveChurchId(req: any): string {
+    const churchId = req.churchId || req.user?.churchId || req.query?.churchId;
+    if (!churchId) {
+      throw new BadRequestException('Necessário indicar igreja para esta operação');
+    }
+    return churchId;
+  }
+
+  private resolveUserId(req: any): string {
+    return req.user?.userId || req.user?.sub;
   }
 }

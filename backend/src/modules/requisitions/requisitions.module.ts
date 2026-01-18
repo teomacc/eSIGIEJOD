@@ -10,6 +10,7 @@ import { FinancesModule } from '../finances/finances.module';
 import { RequisitionsSeeder } from './requisitions.seeder';
 import { User } from '../auth/entities/user.entity';
 import { Fund } from '../finances/entities/fund.entity';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
 /**
  * MÓDULO DE REQUISIÇÕES (RequisitionsModule)
@@ -51,7 +52,7 @@ import { Fund } from '../finances/entities/fund.entity';
     FinancesModule, // Para ConfigurationService e ExpenseService
   ],
   controllers: [RequisitionsController],
-  providers: [RequisitionsService, RequisitionsSeeder],
+  providers: [RequisitionsService, RequisitionsSeeder, ChurchScopeGuard],
   exports: [RequisitionsService],
 })
 export class RequisitionsModule {}

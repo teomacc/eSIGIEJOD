@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 import { Income } from '../finances/entities/income.entity';
 import { Fund } from '../finances/entities/fund.entity';
 import { Requisition } from '../requisitions/entities/requisition.entity';
@@ -22,7 +23,7 @@ import { Requisition } from '../requisitions/entities/requisition.entity';
     TypeOrmModule.forFeature([Income, Fund, Requisition]),
   ],
   controllers: [DashboardController],
-  providers: [DashboardService],
+  providers: [DashboardService, ChurchScopeGuard],
   exports: [DashboardService],
 })
 export class DashboardModule {}

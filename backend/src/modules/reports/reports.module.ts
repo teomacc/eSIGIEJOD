@@ -7,6 +7,7 @@ import { Income } from '../finances/entities/income.entity';
 import { Fund } from '../finances/entities/fund.entity';
 import { Requisition } from '../requisitions/entities/requisition.entity';
 import { AuditService } from '../audit/audit.service';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
 /**
  * MÓDULO DE RELATÓRIOS (ReportsModule)
@@ -63,7 +64,7 @@ import { AuditService } from '../audit/audit.service';
   imports: [
     TypeOrmModule.forFeature([AuditLog, Income, Fund, Requisition]),
   ],
-  providers: [ReportsService, AuditService],
+  providers: [ReportsService, AuditService, ChurchScopeGuard],
   controllers: [ReportsController],
   exports: [ReportsService],
 })

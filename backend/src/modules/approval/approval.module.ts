@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ApprovalService } from './approval.service';
+import { FinancesModule } from '../finances/finances.module';
 
 /**
  * MÓDULO DE APROVAÇÃO (ApprovalModule)
@@ -35,6 +36,7 @@ import { ApprovalService } from './approval.service';
  * TODO: Mover para tabela de configuração no BD
  */
 @Module({
+  imports: [FinancesModule],
   providers: [ApprovalService],
   exports: [ApprovalService],
 })

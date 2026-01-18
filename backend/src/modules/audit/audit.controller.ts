@@ -1,6 +1,8 @@
-import { Controller, Get, Param, Req, Query } from '@nestjs/common';
+import { Controller, Get, Param, Req, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { AuditService } from './audit.service';
 import { AuditAction } from './entities/audit-log.entity';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
 /**
  * CONTROLADOR DE AUDITORIA (AuditController)
@@ -27,6 +29,7 @@ import { AuditAction } from './entities/audit-log.entity';
  * 5. Controller retorna resultados (JSON)
  */
 @Controller('audit')
+@UseGuards(AuthGuard('jwt'), ChurchScopeGuard)
 export class AuditController {
   constructor(private auditService: AuditService) {}
 
@@ -69,10 +72,8 @@ export class AuditController {
     @Query('offset') offset: number = 0,
     @Req() req: any,
   ) {
-    // Extrair churchId do JWT
-    const churchId = req.user.churchId;
+    const churchId = this.resolveChurchId(req);
 
-    // Chamar serviço
     const [logs, total] = await this.auditService.getAuditLogsByChurch(
       churchId,
       limit,
@@ -143,7 +144,7 @@ export class AuditController {
     @Req() req: any,
   ) {
     return this.auditService.getAuditLogsByAction(
-      req.user.churchId,
+      this.resolveChurchId(req),
       action,
     );
   }
@@ -172,7 +173,7 @@ export class AuditController {
     @Req() req: any,
   ) {
     return this.auditService.getAuditLogsByUser(
-      req.user.churchId,
+      this.resolveChurchId(req),
       userId,
     );
   }
@@ -215,9 +216,17 @@ export class AuditController {
 
     // Chamar serviço
     return this.auditService.getAuditLogsByPeriod(
-      req.user.churchId,
+      this.resolveChurchId(req),
       start,
       end,
     );
+  }
+
+  private resolveChurchId(req: any): string {
+    const churchId = req.churchId || req.user?.churchId || req.query?.churchId;
+    if (!churchId) {
+      throw new BadRequestException('Necessário indicar igreja para consultar auditoria');
+    }
+    return churchId;
   }
 }

@@ -16,6 +16,7 @@ import { FinancialMovementService } from './financial-movement.service';
 import { FinancesController } from './finances.controller';
 import { FinancesSeeder } from './finances.seeder';
 import { User } from '../auth/entities/user.entity';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
 /**
  * MÓDULO DE FINANÇAS (FinancesModule)
@@ -63,6 +64,7 @@ import { User } from '../auth/entities/user.entity';
     ExpenseService,
     FinancialMovementService,
     FinancesSeeder,
+    ChurchScopeGuard,
   ],
   // Exportar services para serem utilizados por outros módulos
   exports: [

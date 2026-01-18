@@ -2,11 +2,17 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { User } from './entities/user.entity';
+import { Church } from './entities/church.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { DatabaseSeeder } from './database.seeder';
+import { ChurchService } from './services/church.service';
+import { ChurchesController } from './controllers/churches.controller';
+import { ChurchScopeGuard } from './guards/church-scope.guard';
+import { ObreiroRestrictionGuard } from './guards/obreiro-restriction.guard';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * MÓDULO DE AUTENTICAÇÃO (AuthModule)
@@ -31,19 +37,24 @@ import { DatabaseSeeder } from './database.seeder';
  */
 @Module({
   imports: [
-    // Registar User entity para ser gerida pelo TypeORM
-    TypeOrmModule.forFeature([User]),
+    // Registar User e Church entities para ser geridas pelo TypeORM
+    TypeOrmModule.forFeature([User, Church]),
     // Passport é o framework de autenticação utilizado
     PassportModule,
+    // AuditModule para logging de actions na auditoria
+    AuditModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, ChurchesController],
   providers: [
     AuthService,
+    ChurchService,
     JwtStrategy, // Valida JWT tokens
     LocalStrategy, // Valida email + password
     DatabaseSeeder, // Seed automático de admin padrão
+    ChurchScopeGuard, // Valida isolamento de igrejas
+    ObreiroRestrictionGuard, // Restringe acesso de OBREIROs a dados sensíveis
   ],
-  // Exportar AuthService para ser utilizado por outros módulos
-  exports: [AuthService],
+  // Exportar AuthService e ChurchService para ser utilizado por outros módulos
+  exports: [AuthService, ChurchService, ObreiroRestrictionGuard],
 })
 export class AuthModule {}

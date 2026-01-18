@@ -4,9 +4,11 @@ import {
   Query,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ReportsService } from './reports.service';
+import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
 /**
  * CONTROLADOR DE RELATÓRIOS (ReportsController)
@@ -41,7 +43,7 @@ import { ReportsService } from './reports.service';
  * 7. Controller retorna relatório (JSON)
  */
 @Controller('reports')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), ChurchScopeGuard)
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
@@ -106,8 +108,8 @@ export class ReportsController {
     @Query('month') month: number,
     @Req() req: any,
   ) {
-    const churchId = req.user.churchId;
-    const userId = req.user.sub;
+    const churchId = this.resolveChurchId(req);
+    const userId = this.resolveUserId(req);
 
     return this.reportsService.generateMonthlyReport(
       churchId,
@@ -142,8 +144,8 @@ export class ReportsController {
     @Query('endDate') endDate: string,
     @Req() req: any,
   ) {
-    const churchId = req.user.churchId;
-    const userId = req.user.sub;
+    const churchId = this.resolveChurchId(req);
+    const userId = this.resolveUserId(req);
 
     return this.reportsService.generateGeneralReport(
       churchId,
@@ -193,8 +195,8 @@ export class ReportsController {
   async getFundReport(
     @Req() req: any,
   ) {
-    const churchId = req.user.churchId;
-    const userId = req.user.sub;
+    const churchId = this.resolveChurchId(req);
+    const userId = this.resolveUserId(req);
     const fundId = req.params.fundId;
 
     return this.reportsService.generateFundReport(
@@ -255,8 +257,8 @@ export class ReportsController {
    */
   @Get('requisitions')
   async getRequisitionReport(@Req() req: any) {
-    const churchId = req.user.churchId;
-    const userId = req.user.sub;
+    const churchId = this.resolveChurchId(req);
+    const userId = this.resolveUserId(req);
 
     return this.reportsService.generateRequisitionReport(
       churchId,
@@ -320,8 +322,8 @@ export class ReportsController {
     @Query('endDate') endDate: string,
     @Req() req: any,
   ) {
-    const churchId = req.user.churchId;
-    const userId = req.user.sub;
+    const churchId = this.resolveChurchId(req);
+    const userId = this.resolveUserId(req);
 
     return this.reportsService.generateComplianceReport(
       churchId,
@@ -389,9 +391,21 @@ export class ReportsController {
    */
   @Get('anomalies')
   async detectAnomalies(@Req() req: any) {
-    const churchId = req.user.churchId;
-    const userId = req.user.sub;
+    const churchId = this.resolveChurchId(req);
+    const userId = this.resolveUserId(req);
 
     return this.reportsService.detectAnomalies(churchId, userId);
+  }
+
+  private resolveChurchId(req: any): string {
+    const churchId = req.churchId || req.user?.churchId || req.query?.churchId;
+    if (!churchId) {
+      throw new BadRequestException('Necessário indicar igreja para gerar relatórios');
+    }
+    return churchId;
+  }
+
+  private resolveUserId(req: any): string {
+    return req.user?.sub;
   }
 }

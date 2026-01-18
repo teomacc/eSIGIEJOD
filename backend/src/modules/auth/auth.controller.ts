@@ -1,6 +1,7 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, Request, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { CreateFirstAdminDto } from './dto/create-first-admin.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 /**
@@ -101,4 +102,120 @@ export class AuthController {
   ) {
     return this.authService.register(registerDto, req.user);
   }
+
+  /**
+   * CRIAR PRIMEIRO ADMIN - Setup Inicial
+   * 
+   * POST /auth/setup/create-first-admin
+   * 
+   * Endpoint de setup para criar primeiro admin em produção.
+   * Só funciona se a BD estiver vazia (nenhum usuário).
+   * 
+   * Corpo:
+   * {
+   *   "nomeCompleto": "Administrador da Igreja",
+   *   "email": "admin@igreja.com",
+   *   "username": "admin",
+   *   "password": "SecurePass123!",
+   *   "telefone": "+258 84 123 4567",
+   *   "cidade": "Maputo"
+   * }
+   * 
+   * Resposta (201 Created):
+   * {
+   *   "success": true,
+   *   "message": "Admin criado com sucesso!",
+   *   "user": { id, email, username, roles, churchId }
+   * }
+   * 
+   * Erros:
+   * - 403 Forbidden: Se já existir algum usuário
+   * - 409 Conflict: Se email/username já existir
+   * - 400 Bad Request: Se dados inválidos
+   */
+  @Post('setup/create-first-admin')
+  async createFirstAdmin(@Body() dto: CreateFirstAdminDto) {
+    return this.authService.createFirstAdmin(dto);
+  }
+
+  /**
+   * LISTAR UTILIZADORES - Para seleção em formulários
+   * 
+   * GET /auth/users
+   * Authorization: Bearer <jwt_token>
+   * 
+   * Query params:
+   * - role?: string (filtrar por role, ex: PASTOR_LOCAL)
+   * 
+   * Resposta (200 OK):
+   * [
+   *   {
+   *     "id": "uuid...",
+   *     "name": "João Silva",
+   *     "email": "joao@church.com",
+   *     "roles": ["PASTOR_LOCAL"]
+   *   },
+   *   ...
+   * ]
+   */
+  @Get('users')
+  @UseGuards(JwtAuthGuard)
+  async listUsers(@Request() req: any) {
+    return this.authService.listUsers();
+  }
+
+  /**
+   * LISTAR TODOS OS UTILIZADORES - Para página de gestão
+   * 
+   * GET /auth/all-users
+   * Authorization: Bearer <jwt_token>
+   * 
+   * Resposta (200 OK):
+   * [
+   *   {
+   *     "id": "uuid...",
+   *     "nomeCompleto": "João Silva",
+   *     "email": "joao@church.com",
+   *     "username": "joao",
+   *     "roles": ["PASTOR_LOCAL"],
+   *     "ativo": true,
+   *     "churchId": "uuid..."
+   *   },
+   *   ...
+   * ]
+   */
+  @Get('all-users')
+  @UseGuards(JwtAuthGuard)
+  async listAllUsers() {
+    return this.authService.listAllUsers();
+  }
+
+  /**
+   * ACTUALIZAR STATUS UTILIZADOR - Desactivar/Activar
+   * 
+   * PATCH /auth/:id
+   * Authorization: Bearer <jwt_token>
+   * 
+   * Body:
+   * {
+   *   "ativo": false
+   * }
+   * 
+   * Resposta (200 OK):
+   * {
+   *   "id": "uuid...",
+   *   "nomeCompleto": "João Silva",
+   *   "email": "joao@church.com",
+   *   "ativo": false
+   * }
+   */
+  @Patch('users/:id')
+  @UseGuards(JwtAuthGuard)
+  async updateUser(
+    @Param('id') userId: string,
+    @Body() updateData: { ativo?: boolean },
+  ) {
+    return this.authService.updateUser(userId, updateData);
+  }
 }
+

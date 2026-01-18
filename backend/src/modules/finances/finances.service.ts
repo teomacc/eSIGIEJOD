@@ -325,16 +325,18 @@ export class FinancesService {
    * const fund = await financesService.getFundBalance(fundId);
    * console.log(`Saldo do fundo: ${fund.balance} MT`);
    */
-  async getFundBalance(fundId: string): Promise<Fund> {
-    // Procurar fund por ID
-    const fund = await this.fundRepository.findOne({ 
-      where: { id: fundId } 
+  async getFundBalance(fundId: string, churchId?: string): Promise<Fund> {
+    const fund = await this.fundRepository.findOne({
+      where: {
+        id: fundId,
+        ...(churchId ? { churchId } : {}),
+      },
     });
-    
+
     if (!fund) {
-      throw new Error(`Fundo ${fundId} não encontrado`);
+      throw new Error(`Fundo ${fundId} não encontrado ou fora do escopo da igreja`);
     }
-    
+
     return fund;
   }
 
@@ -379,10 +381,12 @@ export class FinancesService {
    * TODO: Calcular total de entradas
    * TODO: Adicionar filtros por período (mês, ano)
    */
-  async getIncomeByFund(fundId: string): Promise<Income[]> {
-    // Procurar todas as entradas deste fundo
+  async getIncomeByFund(fundId: string, churchId?: string): Promise<Income[]> {
     return this.incomeRepository.find({
-      where: { fundId },
+      where: {
+        fundId,
+        ...(churchId ? { churchId } : {}),
+      },
       order: { createdAt: 'DESC' },
     });
   }

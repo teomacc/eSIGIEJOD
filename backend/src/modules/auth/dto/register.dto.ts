@@ -35,6 +35,7 @@ export class RegisterDto {
   roles!: string[];
   departamento?: string;
   username?: string;
+  ativo?: boolean; // Opcional - padrão true
 }
 
 /**
