@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '@/api/client';
 import { useEntityNames } from '@/hooks/useEntityNames';
+import ViewExpenseDetailModal from '@/components/ViewExpenseDetailModal';
+import ViewRequisitionFromExpenseModal from '@/components/ViewRequisitionFromExpenseModal';
+import ExportExpenseModal from '@/components/ExportExpenseModal';
 import '@/styles/DespesasPage.css';
 
 interface Despesa {
@@ -64,6 +67,12 @@ export default function DespesasPage() {
   const [maxAmount, setMaxAmount] = useState('');
   const [requisitionsApproved, setRequisitionsApproved] = useState(0);
   const { churches, users, loadBatch } = useEntityNames();
+
+  // Modal states
+  const [selectedDespesa, setSelectedDespesa] = useState<Despesa | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showRequisitionModal, setShowRequisitionModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   useEffect(() => {
     fetchDespesas();
@@ -189,11 +198,75 @@ export default function DespesasPage() {
   const formatDate = (value: string) =>
     new Date(value).toLocaleDateString('pt-MZ');
 
+  const handleViewDetails = (despesa: Despesa) => {
+    setSelectedDespesa(despesa);
+    setShowDetailModal(true);
+  };
+
+  const handleViewRequisition = (despesa: Despesa) => {
+    setSelectedDespesa(despesa);
+    setShowRequisitionModal(true);
+  };
+
+  const handleExport = (despesa: Despesa) => {
+    setSelectedDespesa(despesa);
+    setShowExportModal(true);
+  };
+
+  const closeModals = () => {
+    setShowDetailModal(false);
+    setShowRequisitionModal(false);
+    setShowExportModal(false);
+    setSelectedDespesa(null);
+  };
+
+  const handleDownloadPDF = () => {
+    // Generate CSV data for all despesas
+    const csvHeader = 'Código,Descrição,Categoria,Valor,Data,Igreja,Executor,Origem\n';
+    const csvRows = despesas.map((d) => {
+      const categoryLabel = d.requisicao?.category 
+        ? CATEGORY_LABELS[d.requisicao.category] || d.requisicao.category 
+        : 'N/A';
+      
+      return [
+        d.requisicao?.code ?? 'N/A',
+        `"${(d.requisicao?.justification ?? d.observacoes ?? 'Sem descrição').replace(/"/g, '""')}"`,
+        categoryLabel,
+        Number(d.valor),
+        formatDate(d.dataPagamento),
+        churches[d.churchId] ?? d.churchId,
+        users[d.executadoPor] ?? d.executadoPor,
+        d.requisicaoId ? 'Requisição' : 'Direto',
+      ].join(',');
+    }).join('\n');
+
+    const csvContent = csvHeader + csvRows;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `despesas-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="despesas-page">
       <header className="despesas-header">
-        <h1>Despesas</h1>
-        <p>Consulta de despesas executadas</p>
+        <div className="header-content">
+          <div>
+            <h1>Despesas</h1>
+            <p>Consulta de despesas executadas</p>
+          </div>
+          <div className="header-actions">
+            <button className="btn-action" onClick={() => window.print()}>
+              🖨️ Imprimir
+            </button>
+            <button className="btn-action" onClick={handleDownloadPDF}>
+              📥 Baixar PDF
+            </button>
+          </div>
+        </div>
       </header>
 
       {/* Cards de resumo */}
@@ -325,11 +398,19 @@ export default function DespesasPage() {
                     <td>{users[despesa.executadoPor] ?? despesa.executadoPor ?? '—'}</td>
                     <td>{despesa.requisicaoId ? 'Requisição' : 'Direto'}</td>
                     <td>
-                      <button className="btn-view">Ver Detalhes</button>
-                      {despesa.requisicaoId && (
-                        <button className="btn-view">Ver Requisição</button>
-                      )}
-                      <button className="btn-export">Exportar</button>
+                      <div className="action-buttons">
+                        <button className="btn-view" onClick={() => handleViewDetails(despesa)}>
+                          Ver Detalhes
+                        </button>
+                        {despesa.requisicaoId && (
+                          <button className="btn-view" onClick={() => handleViewRequisition(despesa)}>
+                            Ver Requisição
+                          </button>
+                        )}
+                        <button className="btn-export" onClick={() => handleExport(despesa)}>
+                          Exportar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -338,6 +419,32 @@ export default function DespesasPage() {
           </table>
         )}
       </div>
+
+      {/* Modals */}
+      {showDetailModal && selectedDespesa && (
+        <ViewExpenseDetailModal
+          despesa={selectedDespesa}
+          churchName={churches[selectedDespesa.churchId] ?? selectedDespesa.churchId}
+          executorName={users[selectedDespesa.executadoPor] ?? selectedDespesa.executadoPor}
+          onClose={closeModals}
+        />
+      )}
+
+      {showRequisitionModal && selectedDespesa?.requisicaoId && (
+        <ViewRequisitionFromExpenseModal
+          requisicaoId={selectedDespesa.requisicaoId}
+          onClose={closeModals}
+        />
+      )}
+
+      {showExportModal && selectedDespesa && (
+        <ExportExpenseModal
+          despesa={selectedDespesa}
+          churchName={churches[selectedDespesa.churchId] ?? selectedDespesa.churchId}
+          executorName={users[selectedDespesa.executadoPor] ?? selectedDespesa.executadoPor}
+          onClose={closeModals}
+        />
+      )}
     </div>
   );
 }

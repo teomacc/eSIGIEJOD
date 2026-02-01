@@ -80,13 +80,11 @@ export default function Layout() {
         {user && (
           <div className="layout-user-info">
             <div className="user-card">
-              <div className="user-avatar">👤</div>
               <div className="user-details">
-                <p className="user-name">{user.name || user.email || user.username}</p>
+                <p className="user-name">{user.nomeCompleto || user.name || user.username}</p>
                 <p className="user-role">{user.roles.map(getRoleLabel).join(', ')}</p>
-                <p className="user-scope">{getDataScopeDescription(user.roles)}</p>
-                {churchName && (
-                  <p className="user-church">🏛️ {churchName}{churchCode ? ` (Código ${churchCode})` : ''}</p>
+                {churchName && churchName !== 'Acesso Global' && (
+                  <p className="user-church">🏛️ {churchName}</p>
                 )}
               </div>
               <button className="user-logout" onClick={logout} title="Sair">

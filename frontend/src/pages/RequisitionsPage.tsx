@@ -261,10 +261,6 @@ export default function RequisitionsPage() {
                   <span className={statusBadgeClass(req.state)}>{req.state}</span>
                 </td>
                 <td>{formatDate(req.requestedAt || req.createdAt)}</td>
-                <td>
-                  <span className={statusBadgeClass(req.state)}>{req.state}</span>
-                </td>
-                <td>{formatDate(req.requestedAt || req.createdAt)}</td>
                 <td className="actions">
                   <button className="btn-view" onClick={() => setViewModal(req.id)} title="Ver detalhes completos">
                     👁️ Ver

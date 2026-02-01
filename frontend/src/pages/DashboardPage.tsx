@@ -68,7 +68,6 @@ export default function DashboardPage() {
   useEffect(() => {
     loadChurches();
     fetchDashboardData(selectedChurchId || undefined);
-    setChurchLabel(isGlobalUser ? 'Visão Geral - Todas as Igrejas' : 'Igreja atual');
 
     const interval = setInterval(() => {
       fetchDashboardData(selectedChurchId || undefined);
@@ -144,7 +143,6 @@ export default function DashboardPage() {
                   <p className="user-name">👤 {user?.nomeCompleto || user?.username || user?.email?.split('@')[0]}</p>
                   <p className="user-role">{user?.roles?.map((r) => getRoleLabel(r)).join(', ')}</p>
                   <p className="user-email">📧 {user?.email || user?.username}</p>
-                  <p className="user-church">🏛️ {churchLabel || 'Igreja atual'}</p>
                 </div>
               </div>
             </div>
@@ -340,7 +338,6 @@ export default function DashboardPage() {
               <p className="user-name">👤 {user?.nomeCompleto || user?.username || user?.email?.split('@')[0]}</p>
               <p className="user-role">{user?.roles?.map((r) => getRoleLabel(r)).join(', ')}</p>
               <p className="user-email">📧 {user?.email || user?.username}</p>
-              <p className="user-church">🏛️ {churchLabel || 'Igreja atual'}</p>
             </div>
           </div>
         </div>
@@ -406,10 +403,10 @@ export default function DashboardPage() {
             </div>
             <div className="card-body">
               <p className="card-value">
-                {data.receita.total.toLocaleString('pt-MZ')} MTn
+                {(data.receita?.total ?? 0).toLocaleString('pt-MZ')} MTn
               </p>
-              <p className={`card-variation ${data.receita.variacao >= 0 ? 'positive' : 'negative'}`}>
-                {data.receita.variacao >= 0 ? '⬆️ +' : '⬇️ '}{Math.abs(data.receita.variacao)}% em relação ao mês anterior
+              <p className={`card-variation ${(data.receita?.variacao ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                {(data.receita?.variacao ?? 0) >= 0 ? '⬆️ +' : '⬇️ '}{Math.abs(data.receita?.variacao ?? 0).toFixed(1)}% em relação ao mês anterior
               </p>
             </div>
           </div>
@@ -420,10 +417,10 @@ export default function DashboardPage() {
             </div>
             <div className="card-body">
               <p className="card-value">
-                {data.despesas.total.toLocaleString('pt-MZ')} MTn
+                {(data.despesas?.total ?? 0).toLocaleString('pt-MZ')} MTn
               </p>
-              <p className={`card-variation ${data.despesas.variacao >= 0 ? 'positive' : 'negative'}`}>
-                {data.despesas.variacao >= 0 ? '⬆️ +' : '⬇️ '}{Math.abs(data.despesas.variacao)}% comparado ao mês anterior
+              <p className={`card-variation ${(data.despesas?.variacao ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                {(data.despesas?.variacao ?? 0) >= 0 ? '⬆️ +' : '⬇️ '}{Math.abs(data.despesas?.variacao ?? 0).toFixed(1)}% comparado ao mês anterior
               </p>
             </div>
           </div>
@@ -433,10 +430,10 @@ export default function DashboardPage() {
               <h3>⏳ Requisições Pendentes</h3>
             </div>
             <div className="card-body">
-              <p className="card-value">{data.requisicoes.total}</p>
+              <p className="card-value">{data.requisicoes?.total ?? 0}</p>
               <p className="card-details">
-                <span className="badge badge-urgent">🔴 {data.requisicoes.urgentes} urgentes</span>
-                <span className="badge badge-normal">🟡 {data.requisicoes.normais} normais</span>
+                <span className="badge badge-urgent">🔴 {data.requisicoes?.urgentes ?? 0} urgentes</span>
+                <span className="badge badge-normal">🟡 {(data.requisicoes?.total ?? 0) - (data.requisicoes?.urgentes ?? 0)} normais</span>
               </p>
             </div>
           </div>
@@ -446,9 +443,9 @@ export default function DashboardPage() {
               <h3>🏦 Fundos Activos</h3>
             </div>
             <div className="card-body">
-              <p className="card-value">{data.fundos.ativos} Fundos</p>
+              <p className="card-value">{data.fundos?.ativos ?? 0} Fundos</p>
               <div className="card-list">
-                {data.fundos.balanco.map((fundo: any) => (
+                {(data.fundos?.balanco ?? []).map((fundo: any) => (
                   <span key={fundo.id} className="fund-badge">{fundo.nome}</span>
                 ))}
               </div>
@@ -470,17 +467,17 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.fundos.balanco.map((fundo: any) => (
+                {(data.fundos?.balanco ?? []).map((fundo: any) => (
                   <tr key={fundo.id}>
                     <td className="fund-name">{fundo.nome}</td>
                     <td className="fund-income">
-                      {fundo.entradas.toLocaleString('pt-MZ')} MTn
+                      {(fundo.entradas ?? 0).toLocaleString('pt-MZ')} MTn
                     </td>
                     <td className="fund-expense">
-                      {fundo.saidas.toLocaleString('pt-MZ')} MTn
+                      {(fundo.saidas ?? 0).toLocaleString('pt-MZ')} MTn
                     </td>
                     <td className="fund-balance">
-                      {fundo.saldo.toLocaleString('pt-MZ')} MTn
+                      {(fundo.saldo ?? 0).toLocaleString('pt-MZ')} MTn
                     </td>
                   </tr>
                 ))}

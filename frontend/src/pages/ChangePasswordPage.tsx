@@ -9,6 +9,33 @@ export default function ChangePasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [passwordStrength, setPasswordStrength] = useState<string>('');
+
+  const validatePasswordStrength = (password: string): string => {
+    if (password.length === 0) return '';
+    if (password.length < 8) return 'fraca';
+
+    let strength = 0;
+    // Check for length
+    if (password.length >= 12) strength++;
+    // Check for lowercase
+    if (/[a-z]/.test(password)) strength++;
+    // Check for uppercase
+    if (/[A-Z]/.test(password)) strength++;
+    // Check for numbers
+    if (/[0-9]/.test(password)) strength++;
+    // Check for special characters
+    if (/[^a-zA-Z0-9]/.test(password)) strength++;
+
+    if (strength <= 2) return 'fraca';
+    if (strength <= 3) return 'média';
+    return 'forte';
+  };
+
+  const handleNewPasswordChange = (value: string) => {
+    setNewPassword(value);
+    setPasswordStrength(validatePasswordStrength(value));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +52,27 @@ export default function ChangePasswordPage() {
       return;
     }
 
+    // Password strength validation
+    if (!/[a-z]/.test(newPassword)) {
+      setError('A senha deve conter pelo menos uma letra minúscula');
+      return;
+    }
+
+    if (!/[A-Z]/.test(newPassword)) {
+      setError('A senha deve conter pelo menos uma letra maiúscula');
+      return;
+    }
+
+    if (!/[0-9]/.test(newPassword)) {
+      setError('A senha deve conter pelo menos um número');
+      return;
+    }
+
+    if (!/[^a-zA-Z0-9]/.test(newPassword)) {
+      setError('A senha deve conter pelo menos um caractere especial (@, #, $, etc.)');
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setError('As senhas não coincidem');
       return;
@@ -37,6 +85,7 @@ export default function ChangePasswordPage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setPasswordStrength('');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Erro ao alterar senha');
     } finally {
@@ -68,9 +117,24 @@ export default function ChangePasswordPage() {
             <input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e) => handleNewPasswordChange(e.target.value)}
               placeholder="Nova senha"
             />
+            {passwordStrength && (
+              <div className={`password-strength strength-${passwordStrength}`}>
+                Força da senha: <strong>{passwordStrength}</strong>
+              </div>
+            )}
+            <div className="password-requirements">
+              <p className="requirements-title">A senha deve conter:</p>
+              <ul>
+                <li className={newPassword.length >= 8 ? 'valid' : ''}>Pelo menos 8 caracteres</li>
+                <li className={/[a-z]/.test(newPassword) ? 'valid' : ''}>Uma letra minúscula</li>
+                <li className={/[A-Z]/.test(newPassword) ? 'valid' : ''}>Uma letra maiúscula</li>
+                <li className={/[0-9]/.test(newPassword) ? 'valid' : ''}>Um número</li>
+                <li className={/[^a-zA-Z0-9]/.test(newPassword) ? 'valid' : ''}>Um caractere especial (@, #, $, etc.)</li>
+              </ul>
+            </div>
           </div>
 
           <div className="form-group">
