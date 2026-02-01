@@ -18,6 +18,7 @@ interface Despesa {
     code: string;
     justification?: string;
     fundId?: string;
+    category?: string;
   };
 }
 
@@ -33,11 +34,29 @@ interface User {
   name?: string;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  ALIMENTACAO: 'Alimentação',
+  TRANSPORTE: 'Transporte',
+  HOSPEDAGEM: 'Hospedagem',
+  MATERIAL_ESCRITORIO: 'Material de Escritório',
+  MATERIAL_LITURGICO: 'Material Litúrgico',
+  EQUIPAMENTOS: 'Equipamentos',
+  MANUTENCAO: 'Manutenção',
+  APOIO_SOCIAL: 'Apoio Social',
+  ORGANIZACAO_EVENTOS: 'Organização de Eventos',
+  FORMACAO_SEMINARIOS: 'Formação/Seminários',
+  SAUDE_EMERGENCIA: 'Saúde/Emergência',
+  PROJECTOS_MISSIONARIOS: 'Projetos Missionários',
+  COMUNICACAO: 'Comunicação',
+  ENERGIA_AGUA: 'Energia/Água',
+  COMBUSTIVEL: 'Combustível',
+  OUTROS: 'Outros',
+};
+
 export default function DespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [fundFilter, setFundFilter] = useState('');
   const [churchFilter, setChurchFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -87,23 +106,48 @@ export default function DespesasPage() {
     })
     .reduce((sum, d) => sum + Number(d.valor), 0);
 
-  const gastosPorFundo: Record<string, number> = {};
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const categorySummary: Record<string, { total: number; month: number; lastDate?: string }> = {};
+
   despesas.forEach((d) => {
-    if (!gastosPorFundo[d.fundId]) {
-      gastosPorFundo[d.fundId] = 0;
+    const category = d.requisicao?.category ?? 'OUTROS';
+    const amount = Number(d.valor);
+    const paymentDate = d.dataPagamento;
+    const dateObj = new Date(paymentDate);
+
+    if (!categorySummary[category]) {
+      categorySummary[category] = { total: 0, month: 0, lastDate: undefined };
     }
-    gastosPorFundo[d.fundId] += Number(d.valor);
+
+    categorySummary[category].total += amount;
+
+    if (dateObj.getMonth() === currentMonth && dateObj.getFullYear() === currentYear) {
+      categorySummary[category].month += amount;
+    }
+
+    if (!categorySummary[category].lastDate || dateObj > new Date(categorySummary[category].lastDate!)) {
+      categorySummary[category].lastDate = paymentDate;
+    }
   });
-  const fundoMaiorGasto = Object.keys(gastosPorFundo).length > 0
-    ? Object.entries(gastosPorFundo).sort((a, b) => b[1] - a[1])[0]
-    : null;
+
+  const categoryStats = Object.entries(categorySummary).map(([category, stats]) => ({
+    category,
+    label: CATEGORY_LABELS[category] || category,
+    total: stats.total,
+    month: stats.month,
+    lastDate: stats.lastDate,
+  }));
+
+  const sortedCategoryStats = [...categoryStats].sort((a, b) => b.total - a.total);
+  const topCategory = sortedCategoryStats.length > 0 ? sortedCategoryStats[0] : null;
 
   const fetchDespesas = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
-      if (fundFilter) params.append('fundId', fundFilter);
       if (churchFilter) params.append('churchId', churchFilter);
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
@@ -132,7 +176,6 @@ export default function DespesasPage() {
 
   const handleClearFilters = () => {
     setSearch('');
-    setFundFilter('');
     setChurchFilter('');
     setStartDate('');
     setEndDate('');
@@ -168,12 +211,43 @@ export default function DespesasPage() {
           <p className="card-value">{requisitionsApproved}</p>
         </div>
         <div className="despesas-card">
-          <h3>Fundo com Maior Gasto</h3>
+          <h3>Categoria com Maior Gasto</h3>
           <p className="card-value">
-            {fundoMaiorGasto ? `${formatCurrency(fundoMaiorGasto[1])}` : '--'}
+            {topCategory ? `${topCategory.label} — ${formatCurrency(topCategory.total)}` : '--'}
           </p>
         </div>
       </div>
+
+      {/* Resumo por atividade */}
+      <section className="despesas-summary">
+        <div className="summary-header">
+          <h2>Resumo por Atividade</h2>
+          <p>Totais do mês e gerais, com a data do último gasto</p>
+        </div>
+        <div className="summary-grid">
+          {sortedCategoryStats.length === 0 ? (
+            <div className="summary-empty">Nenhuma despesa encontrada</div>
+          ) : (
+            sortedCategoryStats.map((item) => (
+              <div className="summary-card" key={item.category}>
+                <div className="summary-title">{item.label}</div>
+                <div className="summary-row">
+                  <span>Total do mês</span>
+                  <strong>{formatCurrency(item.month)}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Total geral</span>
+                  <strong>{formatCurrency(item.total)}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Último gasto</span>
+                  <strong>{item.lastDate ? formatDate(item.lastDate) : '—'}</strong>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
 
       {/* Filtros avançados */}
       <div className="despesas-filters">
@@ -183,10 +257,6 @@ export default function DespesasPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select value={fundFilter} onChange={(e) => setFundFilter(e.target.value)} aria-label="Filtrar por fundo">
-          <option value="">Todos os Fundos</option>
-          {/* TODO: Carregar fundos dinamicamente */}
-        </select>
         <select value={churchFilter} onChange={(e) => setChurchFilter(e.target.value)} aria-label="Filtrar por igreja">
           <option value="">Todas as Igrejas</option>
           {/* TODO: Carregar igrejas dinamicamente */}
@@ -231,7 +301,6 @@ export default function DespesasPage() {
                 <th>Descrição</th>
                 <th>Valor</th>
                 <th>Data Execução</th>
-                <th>Fundo</th>
                 <th>Igreja</th>
                 <th>Executor</th>
                 <th>Origem</th>
@@ -241,7 +310,7 @@ export default function DespesasPage() {
             <tbody>
               {despesas.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center' }}>
+                  <td colSpan={8} style={{ textAlign: 'center' }}>
                     Nenhuma despesa encontrada
                   </td>
                 </tr>
@@ -252,7 +321,6 @@ export default function DespesasPage() {
                     <td>{despesa.requisicao?.justification ?? despesa.observacoes ?? '—'}</td>
                     <td>{formatCurrency(despesa.valor)}</td>
                     <td>{formatDate(despesa.dataPagamento)}</td>
-                    <td>{despesa.fundId ?? '—'}</td>
                     <td>{churches[despesa.churchId] ?? despesa.churchId ?? '—'}</td>
                     <td>{users[despesa.executadoPor] ?? despesa.executadoPor ?? '—'}</td>
                     <td>{despesa.requisicaoId ? 'Requisição' : 'Direto'}</td>

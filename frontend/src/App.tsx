@@ -12,6 +12,8 @@ import ReportsPage from '@/pages/ReportsPage';
 import ReceitasPage from '@/pages/ReceitasPage';
 import ChurchesPage from '@/pages/ChurchesPage';
 import UsersPage from '@/pages/UsersPage';
+import ProfilePage from '@/pages/ProfilePage';
+import ChangePasswordPage from '@/pages/ChangePasswordPage';
 import '@/styles/globals.css';
 
 /**
@@ -96,6 +98,12 @@ export default function App() {
             
             {/* Relatórios */}
             <Route path="/reports" element={<ReportsPage />} />
+
+            {/* Perfil */}
+            <Route path="/perfil" element={<ProfilePage />} />
+
+            {/* Alterar senha */}
+            <Route path="/alterar-senha" element={<ChangePasswordPage />} />
           </Route>
           
           {/* Rota não encontrada */}

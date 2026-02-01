@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/api/client';
 import { getRoleLabel, UserRole } from '@/utils/permissions';
@@ -32,18 +32,18 @@ export default function DashboardPage() {
     [UserRole.ADMIN, UserRole.LIDER_FINANCEIRO_GERAL].includes(role as UserRole)
   );
 
-  useEffect(() => {
-    const fetchDashboardData = async (targetChurchId?: string) => {
+  const fetchDashboardData = useCallback(
+    async (targetChurchId?: string) => {
       try {
         setLoading(true);
         setError(null);
-        
-          // Obreiros usam endpoint diferente (não veem fundos)
-          const endpoint = isObreiro ? '/dashboard/obreiro-metrics' : '/dashboard/metrics';
-          const response = await apiClient.get(endpoint, {
-            params: !isObreiro && targetChurchId ? { churchId: targetChurchId } : {},
-          });
-        
+
+        // Obreiros usam endpoint diferente (não veem fundos)
+        const endpoint = isObreiro ? '/dashboard/obreiro-metrics' : '/dashboard/metrics';
+        const response = await apiClient.get(endpoint, {
+          params: !isObreiro && targetChurchId ? { churchId: targetChurchId } : {},
+        });
+
         setData(response.data);
       } catch (err: any) {
         console.error('Erro ao carregar dashboard:', err);
@@ -51,33 +51,48 @@ export default function DashboardPage() {
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [isObreiro]
+  );
 
-    // Carregar lista de igrejas para utilizadores globais
-    const loadChurches = async () => {
-      if (!isGlobalUser) return;
-      try {
-        const res = await apiClient.get('/churches');
-        setChurches(res.data || []);
-      } catch (err) {
-        console.error('Erro ao carregar igrejas', err);
-      }
-    };
-
-    loadChurches();
-    fetchDashboardData();
-    setChurchLabel(isGlobalUser ? 'Visão Geral - Todas as Igrejas' : 'Igreja atual');
+  const loadChurches = useCallback(async () => {
+    if (!isGlobalUser) return;
+    try {
+      const res = await apiClient.get('/churches');
+      setChurches(res.data || []);
+    } catch (err) {
+      console.error('Erro ao carregar igrejas', err);
+    }
   }, [isGlobalUser]);
+
+  useEffect(() => {
+    loadChurches();
+    fetchDashboardData(selectedChurchId || undefined);
+    setChurchLabel(isGlobalUser ? 'Visão Geral - Todas as Igrejas' : 'Igreja atual');
+
+    const interval = setInterval(() => {
+      fetchDashboardData(selectedChurchId || undefined);
+    }, 30000);
+
+    const handleFocus = () => {
+      fetchDashboardData(selectedChurchId || undefined);
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isGlobalUser, fetchDashboardData, loadChurches, selectedChurchId]);
 
   const handleChurchChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const value = event.target.value;
     setSelectedChurchId(value);
     setData(null);
     // Recarregar métricas para igreja específica ou visão geral
-    apiClient
-      .get('/dashboard/metrics', { params: value ? { churchId: value } : {} })
-      .then((response) => {
-        setData(response.data);
+    fetchDashboardData(value || undefined)
+      .then(() => {
         if (value) {
           const found = churches.find((c) => c.id === value);
           setChurchLabel(found ? `${found.nome}${found.codigo ? ` (${found.codigo})` : ''}` : 'Igreja selecionada');
@@ -126,7 +141,7 @@ export default function DashboardPage() {
               <h1>Dashboard eSIGIEJOD - Minhas Requisições</h1>
               <div className="header-user">
                 <div className="user-details">
-                  <p className="user-name">👤 {user?.name || user?.username || user?.email?.split('@')[0]}</p>
+                  <p className="user-name">👤 {user?.nomeCompleto || user?.username || user?.email?.split('@')[0]}</p>
                   <p className="user-role">{user?.roles?.map((r) => getRoleLabel(r)).join(', ')}</p>
                   <p className="user-email">📧 {user?.email || user?.username}</p>
                   <p className="user-church">🏛️ {churchLabel || 'Igreja atual'}</p>
@@ -156,7 +171,7 @@ export default function DashboardPage() {
                   onClick={() => setActiveChurchContext(user?.churchId || '')}
                   title={`Operar com fundos da sua igreja local`}
                 >
-                  📍 {user?.name || 'Minha Igreja'}
+                  📍 {user?.nomeCompleto || 'Minha Igreja'}
                 </button>
               </div>
               <p className="context-hint">
@@ -322,7 +337,7 @@ export default function DashboardPage() {
           <h1>Dashboard eSIGIEJOD</h1>
           <div className="header-user">
             <div className="user-details">
-              <p className="user-name">👤 {user?.name || user?.username || user?.email?.split('@')[0]}</p>
+              <p className="user-name">👤 {user?.nomeCompleto || user?.username || user?.email?.split('@')[0]}</p>
               <p className="user-role">{user?.roles?.map((r) => getRoleLabel(r)).join(', ')}</p>
               <p className="user-email">📧 {user?.email || user?.username}</p>
               <p className="user-church">🏛️ {churchLabel || 'Igreja atual'}</p>
@@ -367,7 +382,7 @@ export default function DashboardPage() {
               onClick={() => setActiveChurchContext(user?.churchId || '')}
               title={`Operar com fundos da sua igreja local`}
             >
-              📍 {user?.name || 'Minha Igreja'}
+              📍 {user?.nomeCompleto || 'Minha Igreja'}
             </button>
           </div>
           <p className="context-hint">

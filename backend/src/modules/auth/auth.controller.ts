@@ -2,6 +2,8 @@ import { Controller, Post, Get, Patch, Body, UseGuards, Request, Param } from '@
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { CreateFirstAdminDto } from './dto/create-first-admin.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 /**
@@ -216,6 +218,36 @@ export class AuthController {
     @Body() updateData: { ativo?: boolean },
   ) {
     return this.authService.updateUser(userId, updateData);
+  }
+
+  /**
+   * PERFIL - Obter dados do usuário autenticado
+   * GET /auth/profile
+   */
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Request() req: any) {
+    return this.authService.getProfile(req.user.userId);
+  }
+
+  /**
+   * PERFIL - Actualizar dados do usuário autenticado
+   * PATCH /auth/profile
+   */
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(@Request() req: any, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(req.user.userId, dto);
+  }
+
+  /**
+   * ALTERAR SENHA - Validar senha atual e atualizar
+   * POST /auth/change-password
+   */
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  async changePassword(@Request() req: any, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(req.user.userId, dto);
   }
 }
 

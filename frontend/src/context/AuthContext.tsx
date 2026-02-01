@@ -39,6 +39,9 @@ interface User {
   roles: string[];
   isActive: boolean;
   name?: string;
+  nomeCompleto?: string;
+  telefone?: string;
+  cidade?: string;
 }
 
 interface AuthContextType {
@@ -52,6 +55,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   hasRole: (role: string) => boolean;
   activeChurchContext: string | null;
+  updateUser: (updates: Partial<User>) => void;
   setActiveChurchContext: (churchId: string) => void;
 }
 
@@ -94,6 +98,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem('activeChurchContext');
     return stored || (user?.churchId || null);
   });
+
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...updates };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const setActiveChurchContext = useCallback((churchId: string) => {
     setActiveChurchContextState(churchId);
@@ -262,6 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated,
         hasRole,
         activeChurchContext,
+        updateUser,
         setActiveChurchContext,
       }}
     >

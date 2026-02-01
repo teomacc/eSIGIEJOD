@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { UserRole } from '@/utils/permissions';
+import SuccessModal from './SuccessModal';
 import '@/styles/CreateRequisitionModal.css';
 
 interface Fund {
@@ -39,9 +41,11 @@ export default function CreateRequisitionModal({
   onSuccess,
 }: CreateRequisitionModalProps) {
   const { hasRole } = useAuth();
-  const hideBalance = hasRole('OBREIRO');
+  const isObreiro = hasRole(UserRole.OBREIRO);
+  const hideBalance = isObreiro;
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [form, setForm] = useState({
     fundId: '',
     categoria: CATEGORIES[0].value,
@@ -58,7 +62,8 @@ export default function CreateRequisitionModal({
     try {
       const response = await api.finances.listFunds();
       setFunds(response.data || []);
-      if (response.data?.length > 0) {
+      // Obreiros don't select funds
+      if (!isObreiro && response.data?.length > 0) {
         setForm((prev) => ({ ...prev, fundId: response.data[0].id }));
       }
     } catch (error) {
@@ -69,7 +74,8 @@ export default function CreateRequisitionModal({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!form.fundId) {
+    // Fundos são obrigatórios apenas para usuários que não são obreiros
+    if (!isObreiro && !form.fundId) {
       newErrors.fundId = 'Selecione um fundo';
     }
 
@@ -101,9 +107,12 @@ export default function CreateRequisitionModal({
         motivo: form.motivo,
       });
 
-      alert('Requisição criada com sucesso!');
-      onSuccess();
-      onClose();
+      setShowSuccess(true);
+      // Close after success modal auto-closes (2 seconds)
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 2100);
     } catch (error: any) {
       console.error('Erro ao criar requisição:', error);
       alert(
@@ -116,42 +125,46 @@ export default function CreateRequisitionModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Nova Requisição</h2>
-          <button className="modal-close" onClick={onClose}>
-            ×
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="requisition-form">
-          <div className="form-group">
-            <label htmlFor="fundId">
-              Fundo <span className="required">*</span>
-            </label>
-            <select
-              id="fundId"
-              value={form.fundId}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, fundId: e.target.value }))
-              }
-              className={errors.fundId ? 'error' : ''}
-            >
-              <option value="">Selecione um fundo</option>
-              {funds.map((fund) => (
-                <option key={fund.id} value={fund.id}>
-                  {fund.type.replace('FUNDO_', '').replace(/_/g, ' ')}
-                  {!hideBalance && typeof fund.balance !== 'undefined'
-                    ? ` — Saldo: ${Number(fund.balance).toLocaleString('pt-MZ')} MTn`
-                    : ''}
-                </option>
-              ))}
-            </select>
-            {errors.fundId && (
-              <span className="error-message">{errors.fundId}</span>
-            )}
+    <>
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>Nova Requisição</h2>
+            <button className="modal-close" onClick={onClose}>
+              ×
+            </button>
           </div>
+
+          <form onSubmit={handleSubmit} className="requisition-form">
+          {/* Fundo selector: apenas para não-obreiros */}
+          {!isObreiro && (
+            <div className="form-group">
+              <label htmlFor="fundId">
+                Fundo <span className="required">*</span>
+              </label>
+              <select
+                id="fundId"
+                value={form.fundId}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, fundId: e.target.value }))
+                }
+                className={errors.fundId ? 'error' : ''}
+              >
+                <option value="">Selecione um fundo</option>
+                {funds.map((fund) => (
+                  <option key={fund.id} value={fund.id}>
+                    {fund.type.replace('FUNDO_', '').replace(/_/g, ' ')}
+                    {!hideBalance && typeof fund.balance !== 'undefined'
+                      ? ` — Saldo: ${Number(fund.balance).toLocaleString('pt-MZ')} MTn`
+                      : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.fundId && (
+                <span className="error-message">{errors.fundId}</span>
+              )}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="categoria">
@@ -229,8 +242,14 @@ export default function CreateRequisitionModal({
               {loading ? 'A criar...' : 'Criar Requisição'}
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
-    </div>
+      <SuccessModal
+        isOpen={showSuccess}
+        message="Requisição criada com sucesso!"
+        onClose={() => setShowSuccess(false)}
+      />
+    </>
   );
 }

@@ -580,11 +580,11 @@ export class RequisitionsService {
    * - Notificações de pendências
    */
   async getPendingRequisitions(churchId: string, roles?: string[]): Promise<Requisition[]> {
-    const where = this.isGlobal(roles) ? { state: RequisitionState.UNDER_REVIEW } : { churchId, state: RequisitionState.UNDER_REVIEW };
+    const where = this.isGlobal(roles) ? { state: RequisitionState.PENDENTE } : { churchId, state: RequisitionState.PENDENTE };
     return this.requisitionsRepository.find({
       where,
       order: {
-        requestedAt: 'ASC',
+        createdAt: 'DESC',
       },
     });
   }
@@ -695,6 +695,8 @@ export class RequisitionsService {
 
     return {
       ...requisition,
+      requestedAmount: Number(requisition.requestedAmount),
+      approvedAmount: requisition.approvedAmount ? Number(requisition.approvedAmount) : null,
       creatorInfo: creator ? {
         userId: creator.id,
         name: creator.nomeCompleto || creator.username || creator.email,

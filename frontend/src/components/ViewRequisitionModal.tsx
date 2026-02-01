@@ -212,7 +212,7 @@ const ViewRequisitionModal: React.FC<ViewRequisitionModalProps> = ({ requisition
                 </div>
                 {data.requestedAt && (
                   <div className="timeline-item">
-                    <span className="timeline-label">Solicitada em:</span>
+                    <span className="timeline-label">Enviada para análise em:</span>
                     <span className="timeline-value">{formatDate(data.requestedAt)}</span>
                   </div>
                 )}

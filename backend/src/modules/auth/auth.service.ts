@@ -526,5 +526,116 @@ export class AuthService {
       message: updateData.ativo ? 'Utilizador activado com sucesso' : 'Utilizador desactivado com sucesso',
     };
   }
+
+  /**
+   * PERFIL - Obter dados do usuário autenticado
+   */
+  async getProfile(userId: string) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    return {
+      id: user.id,
+      nomeCompleto: user.nomeCompleto,
+      email: user.email,
+      username: user.username,
+      telefone: user.telefone,
+      cidade: user.cidade,
+      roles: user.roles,
+      churchId: user.churchId,
+    };
+  }
+
+  /**
+   * PERFIL - Actualizar dados do usuário autenticado
+   */
+  async updateProfile(userId: string, data: {
+    nomeCompleto?: string;
+    email?: string;
+    username?: string;
+    telefone?: string;
+    cidade?: string;
+  }) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    if (data.email && data.email !== user.email) {
+      const existingEmail = await this.usersRepository.findOne({
+        where: { email: data.email },
+      });
+      if (existingEmail) {
+        throw new ConflictException('Email já está registado');
+      }
+    }
+
+    if (data.username && data.username !== user.username) {
+      const existingUsername = await this.usersRepository.findOne({
+        where: { username: data.username },
+      });
+      if (existingUsername) {
+        throw new ConflictException('Username já está registado');
+      }
+    }
+
+    user.nomeCompleto = data.nomeCompleto ?? user.nomeCompleto;
+    user.email = data.email ?? user.email;
+    user.username = data.username ?? user.username;
+    user.telefone = data.telefone ?? user.telefone;
+    user.cidade = data.cidade ?? user.cidade;
+
+    const updated = await this.usersRepository.save(user);
+
+    return {
+      id: updated.id,
+      nomeCompleto: updated.nomeCompleto,
+      email: updated.email,
+      username: updated.username,
+      telefone: updated.telefone,
+      cidade: updated.cidade,
+      roles: updated.roles,
+      churchId: updated.churchId,
+    };
+  }
+
+  /**
+   * ALTERAR SENHA - Valida senha actual e actualiza
+   */
+  async changePassword(userId: string, data: { currentPassword: string; newPassword: string }) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    const isValid = await bcrypt.compare(data.currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new BadRequestException('Senha actual incorreta');
+    }
+
+    if (!data.newPassword || data.newPassword.length < 8) {
+      throw new BadRequestException('A nova senha deve ter pelo menos 8 caracteres');
+    }
+
+    const saltRounds = 10;
+    user.passwordHash = await bcrypt.hash(data.newPassword, saltRounds);
+    await this.usersRepository.save(user);
+
+    return {
+      success: true,
+      message: 'Senha alterada com sucesso',
+    };
+  }
 }
 

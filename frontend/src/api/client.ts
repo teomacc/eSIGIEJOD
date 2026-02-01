@@ -116,6 +116,16 @@ export const api = {
       roles: string[];
     }) =>
       apiClient.post('/auth/register', data),
+    getProfile: () => apiClient.get('/auth/profile'),
+    updateProfile: (data: {
+      nomeCompleto?: string;
+      email?: string;
+      username?: string;
+      telefone?: string;
+      cidade?: string;
+    }) => apiClient.patch('/auth/profile', data),
+    changePassword: (data: { currentPassword: string; newPassword: string }) =>
+      apiClient.post('/auth/change-password', data),
   },
 
   /**
