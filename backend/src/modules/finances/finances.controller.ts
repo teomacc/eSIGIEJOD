@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Req, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Req, Query, UseGuards, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { FinancesService } from './finances.service';
 import { ExpenseService } from './expense.service';
 import { FinancialMovementService } from './financial-movement.service';
@@ -110,7 +110,32 @@ export class FinancesController {
   @Get('funds')
   async listFunds(@Req() req: any) {
     const churchId = this.resolveChurchId(req);
+    if (!churchId) {
+      throw new BadRequestException('Necessário indicar uma igreja para listar fundos');
+    }
     return this.financesService.listActiveFunds(churchId);
+  }
+
+  @Post('funds/init-missing')
+  async initMissingFunds(@Req() req: any) {
+    /**
+     * ENDPOINT ADMINISTRATIVO - Criar fundos faltantes para uma Igreja
+     * 
+     * Uso:
+     * POST /finances/funds/init-missing?churchId=<id>
+     * 
+     * Apenas admin pode usar este endpoint
+     * Cria os 10 fundos padrão se não existirem
+     */
+    const user = req.user as { roles?: string[] } | undefined;
+    const isAdmin = user?.roles?.includes('ADMIN');
+    
+    if (!isAdmin) {
+      throw new ForbiddenException('Apenas administradores podem inicializar fundos');
+    }
+
+    const churchId = this.resolveChurchId(req);
+    return this.financesService.initMissingFunds(churchId);
   }
 
   @Post('revenues')
@@ -375,9 +400,15 @@ export class FinancesController {
   }
 
   private resolveChurchId(req: any): string {
-    const churchId = req.churchId || req.user?.churchId || req.query?.churchId;
+    // Tentar obter churchId por ordem de prioridade
+    const churchId = 
+      req.query?.churchId ||              // Query param (frontend pode passar explicitamente)
+      req.user?.churchId ||               // JWT payload
+      req.churchId ||                     // ChurchScopeGuard set
+      req.body?.churchId;                 // Body (última opção)
+    
     if (!churchId) {
-      throw new BadRequestException('Necessário indicar igreja para esta operação');
+      throw new BadRequestException('Necessário indicar Igreja (churchId ausente no JWT ou query)');
     }
     return churchId;
   }

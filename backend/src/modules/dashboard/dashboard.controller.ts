@@ -2,6 +2,7 @@ import { Controller, Get, UseGuards, Request, BadRequestException } from '@nestj
 import { AuthGuard } from '@nestjs/passport';
 import { DashboardService } from './dashboard.service';
 import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
+import { UserRole } from '../auth/entities/user.entity';
 
 /**
  * CONTROLLER DE DASHBOARD (DashboardController)
@@ -39,8 +40,46 @@ export class DashboardController {
     return this.dashboardService.getDashboardMetrics(churchId);
   }
 
-  private resolveChurchId(req: any): string {
-    const churchId = req.churchId || req.user?.churchId || req.query?.churchId;
+    /**
+     * GET /dashboard/obreiro-metrics
+     * 
+     * Retorna métricas resumidas para Obreiros:
+     * - Total de requisições criadas
+     * - Valor total solicitado/aprovado
+     * - Requisições por status
+     * - Últimas 5 requisições
+     * 
+     * Obreiros NÃO veem fundos da igreja
+     * 
+     * @param req - Request com dados do usuário autenticado (JWT)
+     * @returns Objeto com métricas pessoais do obreiro
+     */
+    @Get('obreiro-metrics')
+    async getObreiroMetrics(@Request() req: any) {
+      const userId = req.user?.id || req.user?.userId;
+      const churchId = req.user?.churchId;
+
+      if (!userId || !churchId) {
+        throw new BadRequestException('Utilizador e igreja são obrigatórios');
+      }
+
+      return this.dashboardService.getObreiroMetrics(userId, churchId);
+    }
+
+  private resolveChurchId(req: any): string | null {
+    const userRoles: string[] = req.user?.roles || [];
+    // Apenas ADMIN e LIDER_FINANCEIRO_GERAL são globais
+    const isGlobal = userRoles.some((role) =>
+      [UserRole.ADMIN, UserRole.LIDER_FINANCEIRO_GERAL].includes(role as UserRole)
+    );
+
+    const churchId = req.query?.churchId || req.churchId || req.user?.churchId;
+
+    // Para utilizadores globais, churchId é opcional (permite visão geral)
+    if (isGlobal) {
+      return churchId || null;
+    }
+
     if (!churchId) {
       throw new BadRequestException('Necessário indicar igreja para visualizar dashboard');
     }

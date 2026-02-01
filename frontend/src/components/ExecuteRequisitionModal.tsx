@@ -40,7 +40,20 @@ export default function ExecuteRequisitionModal({
       onClose();
     } catch (error: any) {
       console.error('Erro ao executar:', error);
-      alert(error?.response?.data?.message || 'Erro ao executar requisição');
+      const errorMsg = error?.response?.data?.message || 'Erro ao executar requisição';
+      
+      // Melhorar mensagem para saldo insuficiente
+      if (errorMsg.includes('Saldo insuficiente')) {
+        alert(
+          `❌ ${errorMsg}\n\n` +
+          `💡 Sugestões:\n` +
+          `• Verifique se o fundo correto foi selecionado ao aprovar\n` +
+          `• Registre uma receita para adicionar saldo ao fundo\n` +
+          `• Consulte os detalhes da requisição para confirmar o fundo usado`
+        );
+      } else {
+        alert(`❌ ${errorMsg}`);
+      }
     } finally {
       setLoading(false);
     }

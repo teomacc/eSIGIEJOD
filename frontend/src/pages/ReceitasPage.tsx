@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '@/api/client';
+import { api, apiClient } from '@/api/client';
 import { PAYMENT_METHODS, REVENUE_TYPES, WEEKDAYS, WORSHIP_TYPES } from '@/constants/finance';
 import { useAuth } from '@/context/AuthContext';
+import { useChurchFilter, buildApiUrl } from '@/utils/churchAccess';
 import '@/styles/ReceitasPage.css';
 
 interface FundOption {
@@ -66,6 +67,7 @@ const sanitizeNumberInput = (value: string) => value.replace(',', '.');
 export default function ReceitasPage() {
   const navigate = useNavigate();
   const { user, logout, hasRole } = useAuth();
+  const churchFilter = useChurchFilter();
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [distributions, setDistributions] = useState<DistributionItem[]>([]);
   const [dailyRevenues, setDailyRevenues] = useState<RevenueSummary[]>([]);
@@ -73,6 +75,8 @@ export default function ReceitasPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [churchName, setChurchName] = useState<string>('');
+  const [churchCode, setChurchCode] = useState<string>('');
 
   const [form, setForm] = useState({
     type: REVENUE_TYPES[0].value,
@@ -119,14 +123,25 @@ export default function ReceitasPage() {
       : 'Distribuição equilibrada';
   const remainderClass = remainder > 0 ? 'pending' : remainder < 0 ? 'alert' : 'ok';
 
-  const loadFunds = async () => {
+  const loadFunds = async (churchId?: string) => {
     setLoading(true);
     try {
-      const response = await api.finances.listFunds();
+      let url = '/finances/funds';
+      // Se churchId foi passado, usar ele; caso contrário, tentar usar do filter
+      const id = churchId || churchFilter.churchId;
+      if (id) {
+        url += `?churchId=${id}`;
+      }
+      console.log('📊 Carregando fundos de:', url, 'churchId:', id); // Debug
+      const response = await apiClient.get(url);
+      console.log('✅ Fundos carregados:', response.data); // Debug
       setFunds(response.data);
       if (!distributions.length && response.data.length) {
         setDistributions([{ fundId: response.data[0].id, amount: '' }]);
       }
+    } catch (error) {
+      console.error('❌ Erro ao carregar fundos:', error);
+      setFunds([]);
     } finally {
       setLoading(false);
     }
@@ -148,9 +163,26 @@ export default function ReceitasPage() {
   };
 
   useEffect(() => {
-    loadFunds();
+    console.log('🔄 useEffect acionado - user:', user?.churchId, 'churchFilter:', churchFilter.churchId);
+    loadFunds(user?.churchId);
     loadAllRevenues();
-  }, []);
+
+    // Carregar info da igreja
+    if (user?.churchId) {
+      apiClient.get(`/churches/${user.churchId}`)
+        .then((res) => {
+          setChurchName(res.data?.nome || 'Igreja');
+          setChurchCode(res.data?.codigo || user.churchId.slice(0, 6));
+        })
+        .catch(() => {
+          setChurchName('Igreja Local');
+          setChurchCode(user?.churchId?.slice(0, 6) || '');
+        });
+    } else {
+      setChurchName('Acesso Global');
+      setChurchCode('');
+    }
+  }, [user?.churchId, churchFilter.churchId]);
 
   useEffect(() => {
     loadDailyRevenues(form.date);
@@ -279,7 +311,7 @@ export default function ReceitasPage() {
                  user?.roles?.includes('ADMIN') ? 'Administrador' : 'Usuário'}
               </p>
               <p className="user-email">📧 {user?.email}</p>
-              <p className="user-church">🏛️ Igreja: IEJOD – Sede Central</p>
+              <p className="user-church">🏛️ Igreja: {churchName}{churchCode ? ` (${churchCode})` : ''}</p>
             </div>
           </div>
         </div>

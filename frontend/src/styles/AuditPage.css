@@ -1,51 +1,365 @@
 /**
  * ESTILOS - PÁGINA AUDITORIA (AuditPage.css)
  * 
- * Estilos específicos da página de auditoria
+ * Estilos completos para auditoria com filtros e tabela
  */
 
-.page-header {
-  margin-bottom: var(--spacing-lg);
+.audit-page {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-.page-header a {
-  text-decoration: none;
-  color: var(--color-primary);
+.audit-page h1 {
+  color: #1e3a5f;
+  margin-bottom: 10px;
+  font-size: 28px;
+}
+
+.audit-page .subtitle {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* Alerts */
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
   font-weight: 500;
-  transition: opacity 0.2s ease;
 }
 
-.page-header a:hover {
-  opacity: 0.8;
+.alert-error {
+  background-color: #fee;
+  color: #c33;
+  border-left: 4px solid #c33;
 }
 
-.filters-grid {
+/* Filtros */
+.audit-filters {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  gap: 15px;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
 
-@media (max-width: 1024px) {
-  .filters-grid {
+.filter-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-input,
+.filter-select {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-end;
+}
+
+.btn-primary {
+  background-color: #4a90e2;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #3a7cd5;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
+}
+
+.btn-secondary {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tabela de Logs */
+.audit-table-container {
+  overflow-x: auto;
+  margin-bottom: 30px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.audit-table thead {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2a4a7f 100%);
+  color: white;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.audit-table th {
+  padding: 16px 12px;
+  text-align: left;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 2px solid #1e3a5f;
+}
+
+.audit-table tbody tr {
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s ease;
+}
+
+.audit-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.audit-table tbody tr.audit-row td {
+  padding: 14px 12px;
+  font-size: 13px;
+}
+
+.date-cell {
+  font-weight: 500;
+  color: #2a4a7f;
+  white-space: nowrap;
+}
+
+.action-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+}
+
+.description-cell {
+  max-width: 300px;
+  color: #444;
+  line-height: 1.4;
+}
+
+.description-cell .metadata {
+  display: block;
+  color: #999;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.entity-type {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #e3f2fd;
+  color: #1565c0;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.no-entity {
+  color: #999;
+}
+
+.details-cell {
+  max-width: 200px;
+  font-size: 12px;
+}
+
+.details-cell details {
+  cursor: pointer;
+}
+
+.details-cell details summary {
+  padding: 4px 8px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.details-cell details summary:hover {
+  background: #e0e0e0;
+}
+
+.details-cell pre {
+  background: #f5f5f5;
+  padding: 8px;
+  border-radius: 3px;
+  margin: 8px 0 0 0;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.3;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px !important;
+  color: #999;
+  font-style: italic;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Paginação */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.pagination-info {
+  font-weight: 500;
+  color: #666;
+  font-size: 14px;
+  min-width: 200px;
+  text-align: center;
+}
+
+/* Legenda */
+.audit-legend {
+  padding: 20px;
+  background: #f0f8ff;
+  border-left: 4px solid #4a90e2;
+  border-radius: 6px;
+  margin-top: 20px;
+}
+
+.audit-legend h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #1e3a5f;
+}
+
+.legend-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.legend-item {
+  padding: 12px 15px;
+  background: white;
+  border-left: 4px solid;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.legend-item strong {
+  color: #1e3a5f;
+}
+
+/* Responsividade */
+@media (max-width: 1200px) {
+  .audit-filters {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .audit-table th,
+  .audit-table td {
+    padding: 12px 8px;
+    font-size: 12px;
   }
 }
 
 @media (max-width: 768px) {
-  .filters-grid {
+  .audit-page {
+    padding: 12px;
+  }
+  
+  .audit-page h1 {
+    font-size: 22px;
+  }
+  
+  .audit-filters {
     grid-template-columns: 1fr;
   }
-}
-
-.filter-input,
-.filter-date {
-  width: 100%;
-  padding: var(--spacing-md);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-base);
-  transition: border-color 0.2s ease;
+  
+  .btn-primary {
+    width: 100%;
+  }
+  
+  .audit-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .audit-table th,
+  .audit-table td {
+    padding: 10px 6px;
+    font-size: 11px;
+  }
+  
+  .description-cell {
+    max-width: 150px;
+  }
+  
+  .pagination {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .pagination-info {
+    min-width: auto;
+  }
+  
+  .legend-items {
+    grid-template-columns: 1fr;
+  }
 }
 
 .filter-input:focus,

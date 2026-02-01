@@ -132,10 +132,22 @@ export class AuditService {
     churchId: string,
     limit: number = 100,
     offset: number = 0,
+    action?: string,
+    userId?: string,
   ): Promise<[AuditLog[], number]> {
+    const where: any = { churchId };
+    
+    if (action) {
+      where.action = action;
+    }
+    
+    if (userId) {
+      where.userId = userId;
+    }
+    
     // findAndCount retorna [items, total]
     return this.auditLogRepository.findAndCount({
-      where: { churchId },
+      where,
       order: { createdAt: 'DESC' }, // Mais recente primeiro
       take: limit,
       skip: offset,
@@ -305,4 +317,94 @@ export class AuditService {
       where: { churchId, action },
     });
   }
+
+  /**
+   * REGISTAR MÚLTIPLOS EVENTOS EM BATCH
+   * 
+   * Recebido do frontend em batch
+   * 
+   * Parâmetros:
+   * - events: Array de eventos do frontend
+   * - userId: ID do utilizador que gerou eventos
+   * - churchId: ID da igreja
+   * - ip: Endereço IP do cliente
+   * - userAgent: User agent do navegador
+   * 
+   * Fluxo:
+   * 1. Receber batch de eventos
+   * 2. Processar cada evento
+   * 3. Enriquecer com contexto (userId, churchId, ip, userAgent)
+   * 4. Salvar na BD
+   */
+  async logEventsBatch(
+    events: any[],
+    userId: string,
+    churchId: string,
+    ip: string,
+    userAgent: string,
+  ): Promise<void> {
+    const logs = events.map(event => {
+      const log = new AuditLog();
+      log.churchId = churchId;
+      log.userId = userId;
+      log.action = event.action || 'UNKNOWN';
+      log.entityId = event.entityId;
+      log.entityType = event.entityType;
+      log.changes = event.changes;
+      log.description = event.description;
+      log.metadata = {
+        ...event.metadata,
+        ip,
+        userAgent,
+      };
+
+      return log;
+    });
+
+    if (logs.length > 0) {
+      await this.auditLogRepository.save(logs);
+    }
+  }
+
+  /**
+   * Verificar se string é um UUID válido
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
+   * Obter utilizador por ID (para enriquecimento de logs)
+   */
+  async getUserById(userId: string): Promise<any> {
+    try {
+      const userRepository = this.auditLogRepository.manager.connection.getRepository('User');
+      return await userRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'email', 'username'],
+      });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Obter utilizador por email ou username
+   */
+  async getUserByEmailOrUsername(emailOrUsername: string): Promise<any> {
+    try {
+      const userRepository = this.auditLogRepository.manager.connection.getRepository('User');
+      return await userRepository.findOne({
+        where: [
+          { email: emailOrUsername },
+          { username: emailOrUsername },
+        ],
+        select: ['id', 'email', 'username'],
+      });
+    } catch (error) {
+      return null;
+    }
+  }
 }
+

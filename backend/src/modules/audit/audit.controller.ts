@@ -1,8 +1,11 @@
-import { Controller, Get, Param, Req, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Req, Query, UseGuards, BadRequestException, Body } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuditService } from './audit.service';
 import { AuditAction } from './entities/audit-log.entity';
 import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
+import { UserRole } from '../auth/entities/user.entity';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RoleGuard } from '../auth/guards/role.guard';
 
 /**
  * CONTROLADOR DE AUDITORIA (AuditController)
@@ -29,62 +32,78 @@ import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
  * 5. Controller retorna resultados (JSON)
  */
 @Controller('audit')
-@UseGuards(AuthGuard('jwt'), ChurchScopeGuard)
+@UseGuards(AuthGuard('jwt'), ChurchScopeGuard, RoleGuard)
 export class AuditController {
   constructor(private auditService: AuditService) {}
 
   /**
+   * Verificar se string é um UUID válido
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
    * LISTAR LOGS - GET /audit/logs
+   * 
+   * Apenas Líder Financeiro Geral e Admin podem acessar auditoria
    * 
    * Query params:
    * - limit: Máximo de resultados (padrão: 100)
    * - offset: Deslocamento para pagination (padrão: 0)
-   * 
-   * Resposta:
-   * [
-   *   {
-   *     "id": "uuid...",
-   *     "churchId": "uuid...",
-   *     "userId": "uuid...",
-   *     "action": "REQUISITION_APPROVED",
-   *     "entityId": "uuid...",
-   *     "entityType": "Requisition",
-   *     "changes": { ... },
-   *     "description": "Requisição aprovada",
-   *     "createdAt": "2024-01-15T10:30:00Z"
-   *   },
-   *   ...
-   * ]
-   * 
-   * Fluxo:
-   * 1. Extrair churchId do JWT
-   * 2. Chamar AuditService com churchId
-   * 3. Retornar logs da iglesia
-   * 4. Ordenado por mais recente primeiro
-   * 
-   * Uso:
-   * GET /audit/logs?limit=50&offset=0
-   * Mostra primeiro 50 logs
    */
   @Get('logs')
+  @Roles(UserRole.LIDER_FINANCEIRO_GERAL, UserRole.ADMIN, UserRole.AUDITOR)
   async getAuditLogs(
     @Query('limit') limit: number = 100,
     @Query('offset') offset: number = 0,
+    @Query('action') action?: string,
+    @Query('userId') userId?: string,
     @Req() req: any,
   ) {
     const churchId = this.resolveChurchId(req);
+
+    // Se userId foi fornecido e não é UUID, procurar o utilizador por email/username
+    let resolvedUserId = userId;
+    if (userId && !this.isValidUUID(userId)) {
+      const user = await this.auditService.getUserByEmailOrUsername(userId);
+      if (user) {
+        resolvedUserId = user.id;
+      } else {
+        // Se não encontrar utilizador, retornar lista vazia
+        return {
+          logs: [],
+          total: 0,
+          message: `Utilizador "${userId}" não encontrado`,
+        };
+      }
+    }
 
     const [logs, total] = await this.auditService.getAuditLogsByChurch(
       churchId,
       limit,
       offset,
+      action,
+      resolvedUserId,
+    );
+
+    // Enriquecer logs com nomes de utilizadores
+    const enrichedLogs = await Promise.all(
+      logs.map(async (log) => {
+        const user = await this.auditService.getUserById(log.userId);
+        return {
+          ...log,
+          userName: user?.email || user?.username || 'Desconhecido',
+        };
+      })
     );
 
     // Retornar com informações de pagination
     return {
-      data: logs,
+      logs: enrichedLogs,
+      total,
       pagination: {
-        total,
         limit,
         offset,
         pages: Math.ceil(total / limit),
@@ -228,5 +247,71 @@ export class AuditController {
       throw new BadRequestException('Necessário indicar igreja para consultar auditoria');
     }
     return churchId;
+  }
+
+  /**
+   * REGISTAR EVENTOS EM BATCH - POST /audit/batch-log
+   * 
+   * Endpoint para receber múltiplos eventos de auditoria do frontend
+   * 
+   * Body:
+   * {
+   *   "events": [
+   *     {
+   *       "action": "ELEMENT_CLICKED",
+   *       "description": "Clique em botão",
+   *       "metadata": { ... }
+   *     },
+   *     ...
+   *   ]
+   * }
+   * 
+   * Resposta (201 Created):
+   * {
+   *   "success": true,
+   *   "count": 5,
+   *   "message": "5 eventos registados com sucesso"
+   * }
+   * 
+   * Fluxo:
+   * 1. Frontend coleciona eventos
+   * 2. Envia batch a cada 5 segundos
+   * 3. Backend recebe e processa
+   * 4. Armazena na BD com contexto completo
+   */
+  @Post('batch-log')
+  @UseGuards(AuthGuard('jwt'))
+  async logEventsBatch(
+    @Body() dto: { events: any[] },
+    @Req() req: any,
+  ) {
+    const userId = req.user?.userId || req.user?.id || req.user?.sub;
+    const roles: string[] = req.user?.roles || [];
+    const isGlobal = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.LIDER_FINANCEIRO_GERAL) || roles.includes(UserRole.AUDITOR);
+    // Permitir churchId do JWT, guard ou query param; para usuários globais, aceitar ausência e marcar como 'GLOBAL'
+    const explicitChurchId = req.query?.churchId || req.churchId;
+    const churchId = req.user?.churchId || explicitChurchId;
+
+    if (!userId || (!churchId && !isGlobal)) {
+      throw new BadRequestException('Utilizador e igreja são obrigatórios');
+    }
+
+    if (!dto.events || !Array.isArray(dto.events)) {
+      throw new BadRequestException('Events deve ser um array');
+    }
+
+    await this.auditService.logEventsBatch(
+      dto.events,
+      userId,
+      churchId || 'GLOBAL',
+      req.ip,
+      req.headers['user-agent'],
+    );
+
+    return {
+      success: true,
+      count: dto.events.length,
+      message: `${dto.events.length} eventos registados com sucesso`,
+    };
   }
 }

@@ -49,10 +49,10 @@ export class AuthController {
    */
   @Post('login')
   async login(
-    @Body() credentials: { email: string; password: string }
+    @Body() credentials: { emailOrUsername: string; password: string }
   ) {
     return this.authService.login(
-      credentials.email,
+      credentials.emailOrUsername,
       credentials.password
     );
   }

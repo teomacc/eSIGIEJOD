@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { User } from './entities/user.entity';
 import { Church } from './entities/church.entity';
+import { Fund } from '../finances/entities/fund.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -37,8 +38,8 @@ import { AuditModule } from '../audit/audit.module';
  */
 @Module({
   imports: [
-    // Registar User e Church entities para ser geridas pelo TypeORM
-    TypeOrmModule.forFeature([User, Church]),
+    // Registar User, Church e Fund entities para ser geridas pelo TypeORM
+    TypeOrmModule.forFeature([User, Church, Fund]),
     // Passport é o framework de autenticação utilizado
     PassportModule,
     // AuditModule para logging de actions na auditoria

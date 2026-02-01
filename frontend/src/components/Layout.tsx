@@ -1,39 +1,58 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { apiClient } from '@/api/client';
+import { MENU_ITEMS, ADMIN_ITEMS, hasAccessToRoute, getRoleLabel, getDataScopeDescription } from '@/utils/permissions';
 import '@/styles/Layout.css';
 
-const MENU_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: '📊' },
-  { to: '/receitas', label: 'Receitas', icon: '💰' },
-  { to: '/requisitions', label: 'Requisições', icon: '📝' },
-  { to: '/despesas', label: 'Despesas', icon: '💸' },
-  { to: '/audit', label: 'Auditoria', icon: '🕵️' },
-  { to: '/reports', label: 'Relatórios', icon: '📑' },
-];
-
-const ADMIN_ITEMS = [
-  { to: '/igrejas', label: 'Gestão de Igrejas', icon: '🏛️' },
-  { to: '/utilizadores', label: 'Utilizadores', icon: '👥' },
-  { to: '/fundos', label: 'Fundos', icon: '🏦' },
-  { to: '/configuracoes', label: 'Configurações Globais', icon: '⚙️' },
-  { to: '/transferencias', label: 'Transferências', icon: '🔁' },
-];
-
 export default function Layout() {
+  const { user, logout } = useAuth();
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 900px)').matches);
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 900px)').matches);
+  const [churchName, setChurchName] = useState<string>('');
+  const [churchCode, setChurchCode] = useState<string>('');
 
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 900px)');
     const handler = (e: MediaQueryListEvent) => {
       setIsMobile(e.matches);
-      setSidebarOpen(!e.matches); // close on mobile, open on desktop
+      setSidebarOpen(!e.matches);
     };
     mql.addEventListener('change', handler);
     return () => mql.removeEventListener('change', handler);
   }, []);
 
+  // Carregar info da igreja para exibir no cabeçalho
+  useEffect(() => {
+    const loadChurch = async () => {
+      if (!user?.churchId) {
+        setChurchName('Acesso Global');
+        setChurchCode('');
+        return;
+      }
+      try {
+        const { data } = await apiClient.get(`/churches/${user.churchId}`);
+        setChurchName(data?.nome || 'Igreja');
+        setChurchCode(data?.codigo || user.churchId.slice(0, 6));
+      } catch (error) {
+        setChurchName('Igreja Local');
+        setChurchCode(user.churchId.slice(0, 6));
+      }
+    };
+
+    loadChurch();
+  }, [user?.churchId]);
+
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
+
+  // Filtrar items baseado nos roles do utilizador
+  const visibleMenuItems = MENU_ITEMS.filter(
+    (item) => user && hasAccessToRoute(user.roles, item.roles)
+  );
+
+  const visibleAdminItems = ADMIN_ITEMS.filter(
+    (item) => user && hasAccessToRoute(user.roles, item.roles)
+  );
 
   const renderLinks = (items: typeof MENU_ITEMS) =>
     items.map((item) => (
@@ -57,15 +76,37 @@ export default function Layout() {
           <p>Gestão Financeira</p>
         </div>
 
-        <div className="layout-section">
-          <p className="layout-section-title">Menu Principal</p>
-          <nav className="layout-nav">{renderLinks(MENU_ITEMS)}</nav>
-        </div>
+        {/* Informações do utilizador e chiesa */}
+        {user && (
+          <div className="layout-user-info">
+            <div className="user-card">
+              <div className="user-avatar">👤</div>
+              <div className="user-details">
+                <p className="user-name">{user.name || user.email || user.username}</p>
+                <p className="user-role">{user.roles.map(getRoleLabel).join(', ')}</p>
+                <p className="user-scope">{getDataScopeDescription(user.roles)}</p>
+                {churchName && (
+                  <p className="user-church">🏛️ {churchName}{churchCode ? ` (Código ${churchCode})` : ''}</p>
+                )}
+              </div>
+              <button className="user-logout" onClick={logout} title="Sair">
+                🚪
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="layout-section">
-          <p className="layout-section-title">Admin</p>
-          <nav className="layout-nav">{renderLinks(ADMIN_ITEMS)}</nav>
+          <p className="layout-section-title">Menu Principal</p>
+          <nav className="layout-nav">{renderLinks(visibleMenuItems)}</nav>
         </div>
+
+        {visibleAdminItems.length > 0 && (
+          <div className="layout-section">
+            <p className="layout-section-title">Admin</p>
+            <nav className="layout-nav">{renderLinks(visibleAdminItems)}</nav>
+          </div>
+        )}
       </aside>
 
       {isMobile && sidebarOpen && <div className="layout-backdrop" onClick={toggleSidebar} />}

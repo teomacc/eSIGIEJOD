@@ -5,7 +5,8 @@ import { Requisition, RequisitionState, RequisitionMagnitude, ExpenseCategory, R
 import { ApprovalService, ApprovalLevel } from '../approval/approval.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
-import { UserRole } from '../auth/entities/user.entity';
+import { User, UserRole } from '../auth/entities/user.entity';
+import { Church } from '../auth/entities/church.entity';
 
 /**
  * SERVIÇO DE REQUISIÇÕES (RequisitionsService)
@@ -44,6 +45,10 @@ export class RequisitionsService {
   constructor(
     @InjectRepository(Requisition)
     private requisitionsRepository: Repository<Requisition>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    @InjectRepository(Church)
+    private churchRepository: Repository<Church>,
     private approvalService: ApprovalService,
     private auditService: AuditService,
   ) {}
@@ -97,6 +102,7 @@ export class RequisitionsService {
       creatorType?: RequisitionCreatorType;
       attachments?: string[];
     },
+    roles?: string[],
   ): Promise<Requisition> {
     // Validar amount
     if (data.requestedAmount <= 0) {
@@ -115,13 +121,16 @@ export class RequisitionsService {
     // Gerar código único
     const code = `REQ-${new Date().getFullYear()}-${Date.now()}`;
 
+    // Determinar creatorType automaticamente baseado nas roles do utilizador
+    const creatorType = this.determineCreatorType(roles);
+
     // Criar requisição
     const requisition = new Requisition();
     requisition.code = code;
     requisition.churchId = churchId;
     requisition.fundId = data.fundId;
     requisition.requestedBy = userId;
-    requisition.creatorType = data.creatorType || RequisitionCreatorType.OBREIRO;
+    requisition.creatorType = creatorType;
     requisition.category = data.category as ExpenseCategory;
     requisition.requestedAmount = data.requestedAmount as any; // TypeORM handle decimal
     requisition.magnitude = magnitude;
@@ -199,20 +208,26 @@ export class RequisitionsService {
 
     // Atualizar estado
     requisition.state = RequisitionState.UNDER_REVIEW;
+
+    // Se criador for OBREIRO, notificar pastor automaticamente
+    if (requisition.creatorType === RequisitionCreatorType.OBREIRO) {
+      requisition.notificadoPastorEm = new Date();
+    }
+
     const updated = await this.requisitionsRepository.save(requisition);
 
     // Registrar auditoria
     await this.auditService.logAction({
       churchId: requisition.churchId,
       userId,
-      action: AuditAction.REQUISITION_CREATED, // Usar UNDER_REVIEW quando enum expandido
+      action: AuditAction.REQUISITION_ACKNOWLEDGED,
       entityId: requisition.id,
       entityType: 'Requisition',
       changes: {
         before: { state: RequisitionState.PENDING },
         after: { state: RequisitionState.UNDER_REVIEW },
       },
-      description: 'Requisição enviada para revisão',
+      description: 'Requisição enviada para revisão (pastor notificado quando aplicável)',
     });
 
     return updated;
@@ -269,13 +284,18 @@ export class RequisitionsService {
       );
     }
 
-    const approvalLevel = await this.approvalService.calculateApprovalLevel(
-      Number(requisition.requestedAmount),
-      requisition.churchId,
-    );
+    // Determinar cadeia de aprovação baseada no criador
+    const requiredChain = this.getRequiredApprovalLevelsFor(requisition);
 
-    if (!this.approvalService.canApproveAtLevel(roles, approvalLevel)) {
-      throw new ForbiddenException('Utilizador sem permissão para este nível de aprovação');
+    // Mapear role do usuário para nível de aprovação
+    const userLevel = this.mapRolesToApprovalLevel(roles);
+
+    if (!userLevel) {
+      throw new ForbiddenException('Utilizador sem permissão para aprovar');
+    }
+
+    if (!requiredChain.includes(userLevel)) {
+      throw new ForbiddenException('Este nível não é requerido para esta requisição');
     }
 
     // Validar montante
@@ -286,19 +306,33 @@ export class RequisitionsService {
       );
     }
 
-    // Atualizar
-    requisition.state = RequisitionState.APPROVED;
-    requisition.approvedAmount = finalAmount;
-    requisition.approvedAt = new Date();
-
-    if (approvalLevel === ApprovalLevel.LOCAL_FINANCE) {
+    // Marcar aprovação conforme nível
+    if (userLevel === ApprovalLevel.LOCAL_FINANCE) {
       requisition.approvedBy = userId;
-    } else if (approvalLevel === ApprovalLevel.LOCAL_PASTOR) {
+    } else if (userLevel === ApprovalLevel.LOCAL_PASTOR) {
       requisition.approvedByLevel2 = userId;
-      requisition.approvedBy = requisition.approvedBy || userId;
-    } else {
+    } else if (userLevel === ApprovalLevel.GLOBAL_FINANCE) {
       requisition.approvedByLevel3 = userId;
-      requisition.approvedBy = requisition.approvedBy || userId;
+    } else if (userLevel === ApprovalLevel.PRESIDENT) {
+      requisition.approvedByLevel3 = userId; // usar nível 3 para presidente
+    }
+
+    // Verificar se todas as aprovações requeridas foram concluídas
+    const approvalsDone = [
+      requisition.approvedBy ? ApprovalLevel.LOCAL_FINANCE : undefined,
+      requisition.approvedByLevel2 ? ApprovalLevel.LOCAL_PASTOR : undefined,
+      requisition.approvedByLevel3 ? ApprovalLevel.GLOBAL_FINANCE : undefined,
+    ].filter(Boolean) as ApprovalLevel[];
+
+    // Atualizar montante aprovado (apenas quando primeira aprovação acontece)
+    requisition.approvedAmount = finalAmount;
+
+    if (requiredChain.every((lvl) => approvalsDone.includes(lvl))) {
+      // Todas as aprovações requeridas concluídas → marcar APROVADA
+      requisition.state = RequisitionState.APPROVED;
+    } else {
+      // Ainda faltam aprovações → manter EM_ANALISE
+      requisition.state = RequisitionState.UNDER_REVIEW;
     }
 
     const updated = await this.requisitionsRepository.save(requisition);
@@ -307,7 +341,9 @@ export class RequisitionsService {
     await this.auditService.logAction({
       churchId: requisition.churchId,
       userId,
-      action: AuditAction.REQUISITION_APPROVED,
+      action: RequisitionState.APPROVED === requisition.state
+        ? AuditAction.REQUISITION_APPROVED
+        : AuditAction.REQUISITION_ACKNOWLEDGED,
       entityId: requisition.id,
       entityType: 'Requisition',
       changes: {
@@ -316,11 +352,13 @@ export class RequisitionsService {
           approvedAmount: null,
         },
         after: {
-          state: RequisitionState.APPROVED,
+          state: requisition.state,
           approvedAmount: finalAmount,
         },
       },
-      description: `Requisição aprovada. Valor: ${finalAmount} MT`,
+      description: RequisitionState.APPROVED === requisition.state
+        ? `Requisição aprovada. Valor: ${finalAmount} MT`
+        : 'Aprovação parcial registrada (aguardando mais aprovações)',
     });
 
     return updated;
@@ -380,7 +418,6 @@ export class RequisitionsService {
     requisition.state = RequisitionState.REJECTED;
     requisition.motivoRejeicao = reason;
     requisition.approvedBy = userId;
-    requisition.approvedAt = new Date();
 
     const updated = await this.requisitionsRepository.save(requisition);
 
@@ -542,12 +579,10 @@ export class RequisitionsService {
    * - Dashboard de aprovadores
    * - Notificações de pendências
    */
-  async getPendingRequisitions(churchId: string): Promise<Requisition[]> {
+  async getPendingRequisitions(churchId: string, roles?: string[]): Promise<Requisition[]> {
+    const where = this.isGlobal(roles) ? { state: RequisitionState.UNDER_REVIEW } : { churchId, state: RequisitionState.UNDER_REVIEW };
     return this.requisitionsRepository.find({
-      where: {
-        churchId,
-        state: RequisitionState.UNDER_REVIEW,
-      },
+      where,
       order: {
         requestedAt: 'ASC',
       },
@@ -594,6 +629,87 @@ export class RequisitionsService {
   }
 
   /**
+   * OBTER REQUISIÇÃO COM DETALHES COMPLETOS
+   * Retorna requisição com informações de usuário (criador e aprovadores) e igreja
+   */
+  async getRequisitionWithDetails(requisitionId: string): Promise<any> {
+    const requisition = await this.requisitionsRepository.findOne({
+      where: { id: requisitionId },
+    });
+
+    if (!requisition) {
+      throw new BadRequestException('Requisição não encontrada');
+    }
+
+    // Buscar informações do criador
+    const creator = await this.userRepository.findOne({
+      where: { id: requisition.requestedBy },
+    });
+
+    // Buscar informações da igreja
+    const church = await this.churchRepository.findOne({
+      where: { id: requisition.churchId },
+    });
+
+    // Buscar aprovadores (se existirem)
+    const approvers = [];
+    if (requisition.approvedBy) {
+      const approver1 = await this.userRepository.findOne({
+        where: { id: requisition.approvedBy },
+      });
+      if (approver1) {
+        approvers.push({
+          level: 1,
+          userId: approver1.id,
+          name: approver1.nomeCompleto || approver1.username || approver1.email,
+          email: approver1.email,
+        });
+      }
+    }
+    if (requisition.approvedByLevel2) {
+      const approver2 = await this.userRepository.findOne({
+        where: { id: requisition.approvedByLevel2 },
+      });
+      if (approver2) {
+        approvers.push({
+          level: 2,
+          userId: approver2.id,
+          name: approver2.nomeCompleto || approver2.username || approver2.email,
+          email: approver2.email,
+        });
+      }
+    }
+    if (requisition.approvedByLevel3) {
+      const approver3 = await this.userRepository.findOne({
+        where: { id: requisition.approvedByLevel3 },
+      });
+      if (approver3) {
+        approvers.push({
+          level: 3,
+          userId: approver3.id,
+          name: approver3.nomeCompleto || approver3.username || approver3.email,
+          email: approver3.email,
+        });
+      }
+    }
+
+    return {
+      ...requisition,
+      creatorInfo: creator ? {
+        userId: creator.id,
+        name: creator.nomeCompleto || creator.username || creator.email,
+        email: creator.email,
+      } : null,
+      churchInfo: church ? {
+        churchId: church.id,
+        name: church.nome,
+        code: church.codigo,
+      } : null,
+      approvers,
+    };
+  }
+
+  /**
    * CALCULAR MAGNITUDE
    * 
    * Lógica:
@@ -617,9 +733,10 @@ export class RequisitionsService {
   /**
    * Obter todas as requisições de uma igreja
    */
-  async getRequisitionsByChurch(churchId: string): Promise<Requisition[]> {
+  async getRequisitionsByChurch(churchId: string, roles?: string[]): Promise<Requisition[]> {
+    const where = this.isGlobal(roles) ? {} : { churchId };
     return this.requisitionsRepository.find({
-      where: { churchId },
+      where,
       order: { createdAt: 'DESC' },
     });
   }
@@ -629,12 +746,10 @@ export class RequisitionsService {
    * 
    * Retorna requisições em estado UNDER_REVIEW (aguardando aprovação)
    */
-  async getUnderReviewRequisitions(churchId: string): Promise<Requisition[]> {
+  async getUnderReviewRequisitions(churchId: string, roles?: string[]): Promise<Requisition[]> {
+    const where = this.isGlobal(roles) ? { state: RequisitionState.UNDER_REVIEW } : { churchId, state: RequisitionState.UNDER_REVIEW };
     return this.requisitionsRepository.find({
-      where: {
-        churchId,
-        state: RequisitionState.UNDER_REVIEW,
-      },
+      where,
       order: {
         requestedAt: 'ASC',
       },
@@ -646,12 +761,10 @@ export class RequisitionsService {
    * 
    * Retorna requisições em estado APPROVED (prontas para executar)
    */
-  async getApprovedRequisitions(churchId: string): Promise<Requisition[]> {
+  async getApprovedRequisitions(churchId: string, roles?: string[]): Promise<Requisition[]> {
+    const where = this.isGlobal(roles) ? { state: RequisitionState.APPROVED } : { churchId, state: RequisitionState.APPROVED };
     return this.requisitionsRepository.find({
-      where: {
-        churchId,
-        state: RequisitionState.APPROVED,
-      },
+      where,
       order: {
         requestedAt: 'ASC',
       },
@@ -663,12 +776,10 @@ export class RequisitionsService {
    * 
    * Retorna requisições em estado EXECUTED (já pagas)
    */
-  async getExecutedRequisitions(churchId: string): Promise<Requisition[]> {
+  async getExecutedRequisitions(churchId: string, roles?: string[]): Promise<Requisition[]> {
+    const where = this.isGlobal(roles) ? { state: RequisitionState.EXECUTED } : { churchId, state: RequisitionState.EXECUTED };
     return this.requisitionsRepository.find({
-      where: {
-        churchId,
-        state: RequisitionState.EXECUTED,
-      },
+      where,
       order: {
         requestedAt: 'DESC',
       },
@@ -723,7 +834,6 @@ export class RequisitionsService {
     requisition.state = RequisitionState.APPROVED;
     requisition.approvedAmount = finalAmount;
     requisition.approvedBy = userId;
-    requisition.approvedAt = new Date();
 
     const updated = await this.requisitionsRepository.save(requisition);
 
@@ -866,16 +976,68 @@ export class RequisitionsService {
     });
   }
 
+  private mapRolesToApprovalLevel(roles?: string[]): ApprovalLevel | null {
+    const effective = roles || [];
+    if (effective.includes(UserRole.PASTOR_PRESIDENTE) || effective.includes(UserRole.ADMIN)) {
+      return ApprovalLevel.PRESIDENT;
+    }
+    if (effective.includes(UserRole.LIDER_FINANCEIRO_GERAL)) {
+      return ApprovalLevel.GLOBAL_FINANCE;
+    }
+    if (effective.includes(UserRole.PASTOR_LOCAL)) {
+      return ApprovalLevel.LOCAL_PASTOR;
+    }
+    if (effective.includes(UserRole.LIDER_FINANCEIRO_LOCAL) || effective.includes(UserRole.TREASURER)) {
+      return ApprovalLevel.LOCAL_FINANCE;
+    }
+    return null;
+  }
+
+  private getRequiredApprovalLevelsFor(req: Requisition): ApprovalLevel[] {
+    switch (req.creatorType) {
+      case RequisitionCreatorType.OBREIRO:
+        // Apenas Líder Financeiro Local aprova; pastor é apenas notificado
+        return [ApprovalLevel.LOCAL_FINANCE];
+      case RequisitionCreatorType.LIDER_FINANCEIRO:
+        // Requer Pastor Local e Líder Financeiro Geral
+        return [ApprovalLevel.LOCAL_PASTOR, ApprovalLevel.GLOBAL_FINANCE];
+      case RequisitionCreatorType.PASTOR:
+        // Requer Líder Financeiro Local e Líder Financeiro Geral
+        return [ApprovalLevel.LOCAL_FINANCE, ApprovalLevel.GLOBAL_FINANCE];
+      default:
+        // Director: requer Líder Financeiro Geral
+        return [ApprovalLevel.GLOBAL_FINANCE];
+    }
+  }
+
   private isGlobal(roles?: string[]): boolean {
     const effective = roles || [];
+    // Apenas roles verdadeiramente globais (podem operar em qualquer igreja)
     const globalRoles = [
       UserRole.ADMIN,
       UserRole.LIDER_FINANCEIRO_GERAL,
       UserRole.PASTOR_PRESIDENTE,
-      UserRole.PASTOR,
     ];
 
     return effective.some((role) => globalRoles.includes(role as UserRole));
+  }
+
+  private determineCreatorType(roles?: string[]): RequisitionCreatorType {
+    const effective = roles || [];
+    
+    // Ordem de precedência para determinar tipo de criador
+    if (effective.includes(UserRole.PASTOR_LOCAL) || effective.includes(UserRole.PASTOR)) {
+      return RequisitionCreatorType.PASTOR;
+    }
+    if (effective.includes(UserRole.LIDER_FINANCEIRO_LOCAL) || effective.includes(UserRole.TREASURER)) {
+      return RequisitionCreatorType.LIDER_FINANCEIRO;
+    }
+    if (effective.includes(UserRole.LIDER_FINANCEIRO_GERAL) || effective.includes(UserRole.DIRECTOR)) {
+      return RequisitionCreatorType.DIRECTOR;
+    }
+    
+    // Default: OBREIRO
+    return RequisitionCreatorType.OBREIRO;
   }
 
   private ensureChurchScope(
@@ -888,7 +1050,8 @@ export class RequisitionsService {
     }
 
     if (!churchId) {
-      throw new ForbiddenException('Utilizador sem igreja associada para esta operação');
+      // Fallback: usar a igreja da própria requisição para não bloquear o autor
+      churchId = requisition.churchId;
     }
 
     if (requisition.churchId !== churchId) {

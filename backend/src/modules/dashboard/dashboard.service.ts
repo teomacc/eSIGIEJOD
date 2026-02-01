@@ -35,7 +35,7 @@ export class DashboardService {
    * @param churchId - ID da igreja (isolamento de dados)
    * @returns Objeto com todas as métricas agregadas
    */
-  async getDashboardMetrics(churchId: string) {
+  async getDashboardMetrics(churchId?: string | null) {
     try {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -46,24 +46,32 @@ export class DashboardService {
       const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
       // 1. RECEITA DO MÊS ATUAL
-      const receitaMesResult = await this.incomeRepository
+      const receitaMesQuery = this.incomeRepository
         .createQueryBuilder('income')
         .select('SUM(income.amount)', 'total')
-        .where('income.churchId = :churchId', { churchId })
-        .andWhere('income.date >= :start', { start: firstDayOfMonth })
-        .andWhere('income.date <= :end', { end: lastDayOfMonth })
-        .getRawOne();
+        .where('income.date >= :start', { start: firstDayOfMonth })
+        .andWhere('income.date <= :end', { end: lastDayOfMonth });
+
+      if (churchId) {
+        receitaMesQuery.andWhere('income.churchId = :churchId', { churchId });
+      }
+
+      const receitaMesResult = await receitaMesQuery.getRawOne();
 
       const receitaMes = parseFloat(receitaMesResult?.total || '0');
 
     // Receita do mês anterior para comparação
-    const receitaMesAnteriorResult = await this.incomeRepository
+    const receitaMesAnteriorQuery = this.incomeRepository
       .createQueryBuilder('income')
       .select('SUM(income.amount)', 'total')
-      .where('income.churchId = :churchId', { churchId })
-      .andWhere('income.date >= :start', { start: firstDayOfLastMonth })
-      .andWhere('income.date <= :end', { end: lastDayOfLastMonth })
-      .getRawOne();
+      .where('income.date >= :start', { start: firstDayOfLastMonth })
+      .andWhere('income.date <= :end', { end: lastDayOfLastMonth });
+
+    if (churchId) {
+      receitaMesAnteriorQuery.andWhere('income.churchId = :churchId', { churchId });
+    }
+
+    const receitaMesAnteriorResult = await receitaMesAnteriorQuery.getRawOne();
 
     const receitaMesAnterior = parseFloat(receitaMesAnteriorResult?.total || '0');
     const receitaVariacao = receitaMesAnterior > 0 
@@ -71,26 +79,34 @@ export class DashboardService {
       : 0;
 
     // 2. DESPESAS DO MÊS ATUAL (Requisições executadas)
-    const despesasMesResult = await this.requisitionRepository
+    const despesasMesQuery = this.requisitionRepository
       .createQueryBuilder('req')
       .select('SUM(COALESCE(req.approvedAmount, req.requestedAmount))', 'total')
-      .where('req.churchId = :churchId', { churchId })
-      .andWhere('req.state = :state', { state: RequisitionState.EXECUTED })
+      .where('req.state = :state', { state: RequisitionState.EXECUTED })
       .andWhere('req.executedAt >= :start', { start: firstDayOfMonth })
-      .andWhere('req.executedAt <= :end', { end: lastDayOfMonth })
-      .getRawOne();
+      .andWhere('req.executedAt <= :end', { end: lastDayOfMonth });
+
+    if (churchId) {
+      despesasMesQuery.andWhere('req.churchId = :churchId', { churchId });
+    }
+
+    const despesasMesResult = await despesasMesQuery.getRawOne();
 
     const despesasMes = parseFloat(despesasMesResult?.total || '0');
 
     // Despesas do mês anterior
-    const despesasMesAnteriorResult = await this.requisitionRepository
+    const despesasMesAnteriorQuery = this.requisitionRepository
       .createQueryBuilder('req')
       .select('SUM(COALESCE(req.approvedAmount, req.requestedAmount))', 'total')
-      .where('req.churchId = :churchId', { churchId })
-      .andWhere('req.state = :state', { state: RequisitionState.EXECUTED })
+      .where('req.state = :state', { state: RequisitionState.EXECUTED })
       .andWhere('req.executedAt >= :start', { start: firstDayOfLastMonth })
-      .andWhere('req.executedAt <= :end', { end: lastDayOfLastMonth })
-      .getRawOne();
+      .andWhere('req.executedAt <= :end', { end: lastDayOfLastMonth });
+
+    if (churchId) {
+      despesasMesAnteriorQuery.andWhere('req.churchId = :churchId', { churchId });
+    }
+
+    const despesasMesAnteriorResult = await despesasMesAnteriorQuery.getRawOne();
 
     const despesasMesAnterior = parseFloat(despesasMesAnteriorResult?.total || '0');
     const despesasVariacao = despesasMesAnterior > 0 
@@ -98,18 +114,22 @@ export class DashboardService {
       : 0;
 
     // 3. REQUISIÇÕES PENDENTES
-    const requisicoesResult = await this.requisitionRepository
+    const requisicoesQuery = this.requisitionRepository
       .createQueryBuilder('req')
       .select('req.state', 'state')
       .addSelect('req.magnitude', 'magnitude')
       .addSelect('COUNT(*)', 'count')
-      .where('req.churchId = :churchId', { churchId })
-      .andWhere('req.state IN (:...states)', { 
-        states: [RequisitionState.PENDING, RequisitionState.UNDER_REVIEW] 
+      .where('req.state IN (:...states)', {
+        states: [RequisitionState.PENDING, RequisitionState.UNDER_REVIEW],
       })
       .groupBy('req.state')
-      .addGroupBy('req.magnitude')
-      .getRawMany();
+      .addGroupBy('req.magnitude');
+
+    if (churchId) {
+      requisicoesQuery.andWhere('req.churchId = :churchId', { churchId });
+    }
+
+    const requisicoesResult = await requisicoesQuery.getRawMany();
 
     const totalPendentes = requisicoesResult.reduce((sum, row) => sum + parseInt(row.count), 0);
     
@@ -119,12 +139,16 @@ export class DashboardService {
       .reduce((sum, row) => sum + parseInt(row.count), 0);
 
     // 4. FUNDOS ATIVOS
-    const fundos = await this.fundRepository
+    const fundosQuery = this.fundRepository
       .createQueryBuilder('fund')
-      .where('fund.churchId = :churchId', { churchId })
-      .andWhere('fund.isActive = :isActive', { isActive: true })
-      .orderBy('fund.balance', 'DESC')
-      .getMany();
+      .where('fund.isActive = :isActive', { isActive: true })
+      .orderBy('fund.balance', 'DESC');
+
+    if (churchId) {
+      fundosQuery.andWhere('fund.churchId = :churchId', { churchId });
+    }
+
+    const fundos = await fundosQuery.getMany();
 
     const fundosAtivos = fundos.length;
 
@@ -261,4 +285,114 @@ export class DashboardService {
     };
     return mapping[type] || type;
   }
+
+    /**
+     * GET OBREIRO METRICS - Retorna métricas resumidas para Obreiros
+     * 
+     * Obreiros não devem ver fundos da igreja, apenas:
+     * - Total de requisições criadas por ele
+     * - Valor total solicitado
+     * - Requisições por status (pendentes, aprovadas, executadas)
+     * - Últimas 5 requisições
+     * 
+     * @param userId - ID do obreiro
+     * @param churchId - ID da igreja
+     * @returns Objeto com métricas pessoais do obreiro
+     */
+    async getObreiroMetrics(userId: string, churchId: string) {
+      try {
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        // Requisições criadas pelo obreiro
+        const minhasRequisicoes = await this.requisitionRepository
+          .createQueryBuilder('req')
+          .where('req.createdBy = :userId', { userId })
+          .andWhere('req.churchId = :churchId', { churchId })
+          .orderBy('req.createdAt', 'DESC')
+          .getMany();
+
+        // Total de requisições
+        const totalRequisicoes = minhasRequisicoes.length;
+
+        // Requisições por status
+        const pendentes = minhasRequisicoes.filter(r => r.state === RequisitionState.PENDING).length;
+        const emAnalise = minhasRequisicoes.filter(r => r.state === RequisitionState.UNDER_REVIEW).length;
+        const aprovadas = minhasRequisicoes.filter(r => r.state === RequisitionState.APPROVED).length;
+        const executadas = minhasRequisicoes.filter(r => r.state === RequisitionState.EXECUTED).length;
+        const rejeitadas = minhasRequisicoes.filter(r => r.state === RequisitionState.REJECTED).length;
+
+        // Valor total solicitado (todas as requisições)
+        const valorTotalSolicitado = minhasRequisicoes.reduce((sum, req) => {
+          return sum + parseFloat(req.requestedAmount.toString());
+        }, 0);
+
+        // Valor total aprovado (aprovadas + executadas)
+        const valorTotalAprovado = minhasRequisicoes
+          .filter(r => r.state === RequisitionState.APPROVED || r.state === RequisitionState.EXECUTED)
+          .reduce((sum, req) => {
+            return sum + parseFloat((req.approvedAmount || req.requestedAmount).toString());
+          }, 0);
+
+        // Requisições do mês atual
+        const requisicoesMes = minhasRequisicoes.filter(r => {
+          return r.createdAt >= firstDayOfMonth && r.createdAt <= lastDayOfMonth;
+        });
+
+        const valorMes = requisicoesMes.reduce((sum, req) => {
+          return sum + parseFloat(req.requestedAmount.toString());
+        }, 0);
+
+        // Últimas 5 requisições
+        const ultimasRequisicoes = minhasRequisicoes.slice(0, 5).map(req => ({
+          id: req.id,
+          descricao: req.description,
+          valor: parseFloat(req.requestedAmount.toString()),
+          estado: req.state,
+          criadaEm: req.createdAt,
+        }));
+
+        return {
+          resumo: {
+            totalRequisicoes,
+            valorTotalSolicitado,
+            valorTotalAprovado,
+          },
+          mesAtual: {
+            requisicoes: requisicoesMes.length,
+            valor: valorMes,
+          },
+          porStatus: {
+            pendentes,
+            emAnalise,
+            aprovadas,
+            executadas,
+            rejeitadas,
+          },
+          ultimasRequisicoes,
+        };
+      } catch (error) {
+        console.error('Erro ao buscar métricas do obreiro:', error);
+        return {
+          resumo: {
+            totalRequisicoes: 0,
+            valorTotalSolicitado: 0,
+            valorTotalAprovado: 0,
+          },
+          mesAtual: {
+            requisicoes: 0,
+            valor: 0,
+          },
+          porStatus: {
+            pendentes: 0,
+            emAnalise: 0,
+            aprovadas: 0,
+            executadas: 0,
+            rejeitadas: 0,
+          },
+          ultimasRequisicoes: [],
+        };
+      }
+    }
 }

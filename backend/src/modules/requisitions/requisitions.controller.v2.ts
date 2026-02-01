@@ -78,6 +78,7 @@ export class RequisitionsController {
   ): Promise<Requisition> {
     const churchId = req.user.churchId;
     const userId = req.user.sub || req.user.userId;
+    const roles = req.user?.roles || [];
 
     return this.requisitionsService.createRequisition(
       churchId,
@@ -89,6 +90,7 @@ export class RequisitionsController {
         justification: body.motivo,
         creatorType: body.creatorType,
       },
+      roles,
     );
   }
 
@@ -101,12 +103,22 @@ export class RequisitionsController {
   }
 
   /**
+   * OBTER REQUISIÇÃO COM DETALHES - GET /requisitions/:id/details
+   * Retorna requisição com informações de usuário e igreja
+   */
+  @Get(':id/details')
+  async getRequisitionDetails(@Param('id') id: string, @Req() req: any): Promise<any> {
+    return this.requisitionsService.getRequisitionWithDetails(id);
+  }
+
+  /**
    * LISTAR TODAS - GET /requisitions
    */
   @Get()
   async listAllRequisitions(@Req() req: any): Promise<Requisition[]> {
     const churchId = req.user.churchId;
-    return this.requisitionsService.getRequisitionsByChurch(churchId);
+    const roles = req.user.roles || [];
+    return this.requisitionsService.getRequisitionsByChurch(churchId, roles);
   }
 
   /**
@@ -118,7 +130,8 @@ export class RequisitionsController {
   @Get('status/pending')
   async getPendingRequisitions(@Req() req: any): Promise<Requisition[]> {
     const churchId = req.user.churchId;
-    return this.requisitionsService.getPendingRequisitions(churchId);
+    const roles = req.user.roles || [];
+    return this.requisitionsService.getPendingRequisitions(churchId, roles);
   }
 
   /**
@@ -127,7 +140,8 @@ export class RequisitionsController {
   @Get('status/under-review')
   async getUnderReviewRequisitions(@Req() req: any): Promise<Requisition[]> {
     const churchId = req.user.churchId;
-    return this.requisitionsService.getUnderReviewRequisitions(churchId);
+    const roles = req.user.roles || [];
+    return this.requisitionsService.getUnderReviewRequisitions(churchId, roles);
   }
 
   /**
@@ -138,7 +152,8 @@ export class RequisitionsController {
   @Get('status/approved')
   async getApprovedRequisitions(@Req() req: any): Promise<Requisition[]> {
     const churchId = req.user.churchId;
-    return this.requisitionsService.getApprovedRequisitions(churchId);
+    const roles = req.user.roles || [];
+    return this.requisitionsService.getApprovedRequisitions(churchId, roles);
   }
 
   /**
@@ -147,7 +162,8 @@ export class RequisitionsController {
   @Get('status/executed')
   async getExecutedRequisitions(@Req() req: any): Promise<Requisition[]> {
     const churchId = req.user.churchId;
-    return this.requisitionsService.getExecutedRequisitions(churchId);
+    const roles = req.user.roles || [];
+    return this.requisitionsService.getExecutedRequisitions(churchId, roles);
   }
 
   /**
@@ -187,9 +203,13 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     const userId = req.user.sub || req.user.userId;
+    const roles = req.user.roles || [];
+    const churchId = req.user.churchId;
     return this.requisitionsService.approveRequisition(
       id,
       userId,
+      roles,
+      churchId,
       body.approvedAmount,
     );
   }
@@ -214,7 +234,9 @@ export class RequisitionsController {
     @Req() req: any,
   ): Promise<Requisition> {
     const userId = req.user.sub || req.user.userId;
-    return this.requisitionsService.approveLevel2(id, userId, body.approvedAmount);
+    const roles = req.user.roles || [];
+    const churchId = req.user.churchId;
+    return this.requisitionsService.approveLevel2(id, userId, roles, churchId, body.approvedAmount);
   }
 
   /**
@@ -241,7 +263,9 @@ export class RequisitionsController {
     }
 
     const userId = req.user.sub || req.user.userId;
-    return this.requisitionsService.rejectRequisition(id, userId, body.motivo);
+    const roles = req.user.roles || [];
+    const churchId = req.user.churchId;
+    return this.requisitionsService.rejectRequisition(id, userId, roles, churchId, body.motivo);
   }
 
   /**

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { auditService } from '@/services/auditService';
 
 /**
  * CONTEXTO DE AUTENTICAÇÃO (AuthContext)
@@ -32,7 +33,8 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 
 interface User {
   id: string;
-  email: string;
+  email?: string;
+  username?: string;
   churchId: string;
   roles: string[];
   isActive: boolean;
@@ -49,6 +51,8 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   hasRole: (role: string) => boolean;
+  activeChurchContext: string | null;
+  setActiveChurchContext: (churchId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -84,6 +88,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Contexto de igreja ativa (para LIDER_FINANCEIRO_GERAL escolher entre sua igreja local ou conta GERAL)
+  const [activeChurchContext, setActiveChurchContextState] = useState<string | null>(() => {
+    const stored = localStorage.getItem('activeChurchContext');
+    return stored || (user?.churchId || null);
+  });
+
+  const setActiveChurchContext = useCallback((churchId: string) => {
+    setActiveChurchContextState(churchId);
+    localStorage.setItem('activeChurchContext', churchId);
+  }, []);
 
   /**
    * LOGIN
@@ -102,21 +117,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * - Network error
    */
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (emailOrUsername: string, password: string) => {
       setIsLoading(true);
       setError(null);
 
       try {
+        // Validar entrada
+        if (!emailOrUsername.trim() || !password) {
+          throw new Error('Email/Utilizador e senha são obrigatórios');
+        }
+
         const response = await fetch('/api/auth/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({
+            emailOrUsername: emailOrUsername.trim(),
+            password,
+          }),
         });
 
         if (!response.ok) {
-          throw new Error('Erro ao fazer login');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.message ||
+            (response.status === 401 ? 'Email/Utilizador ou senha incorretos' : 'Erro ao fazer login')
+          );
         }
 
         const { access_token, user } = await response.json();
@@ -125,6 +152,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(access_token);
         localStorage.setItem('token', access_token);
         localStorage.setItem('user', JSON.stringify(user));
+        
+        // Registar login na auditoria
+        auditService.logLogin(user.email || user.username);
       } catch (err: any) {
         setError(err.message || 'Erro ao fazer login');
         setUser(null);
@@ -187,6 +217,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * 3. (Opcional) Chamar API para invalidar token no servidor
    */
   const logout = useCallback(() => {
+    // Registar logout na auditoria antes de limpar
+    if (user) {
+      auditService.logLogout();
+    }
+
     setUser(null);
     setToken(null);
     setError(null);
@@ -194,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('user');
 
     // TODO: Chamar API POST /auth/logout
-  }, []);
+  }, [user]);
 
   /**
    * VERIFICAR SE AUTENTICADO
@@ -226,6 +261,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         isAuthenticated,
         hasRole,
+        activeChurchContext,
+        setActiveChurchContext,
       }}
     >
       {children}

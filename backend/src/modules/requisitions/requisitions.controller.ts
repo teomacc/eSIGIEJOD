@@ -105,12 +105,14 @@ export class RequisitionsController {
     // Extrair informações do JWT
     const churchId = this.resolveChurchId(req);
     const userId = req.user.sub; // 'sub' é o userId no JWT
+    const roles = this.resolveRoles(req);
 
     // Chamar serviço
     return this.requisitionsService.createRequisition(
       churchId,
       userId,
       createRequisitionDto,
+      roles,
     );
   }
 
@@ -462,7 +464,11 @@ export class RequisitionsController {
   }
 
   private resolveChurchId(req: any): string {
-    const churchId = req.churchId || req.user?.churchId || req.query?.churchId;
+    const churchId =
+      req.churchId ||
+      req.user?.churchId ||
+      req.query?.churchId ||
+      req.body?.churchId;
     if (!churchId) {
       throw new BadRequestException('Necessário indicar igreja para operar');
     }

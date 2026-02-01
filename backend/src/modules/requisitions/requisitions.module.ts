@@ -9,6 +9,7 @@ import { AuditModule } from '../audit/audit.module';
 import { FinancesModule } from '../finances/finances.module';
 import { RequisitionsSeeder } from './requisitions.seeder';
 import { User } from '../auth/entities/user.entity';
+import { Church } from '../auth/entities/church.entity';
 import { Fund } from '../finances/entities/fund.entity';
 import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 
@@ -45,7 +46,7 @@ import { ChurchScopeGuard } from '../auth/guards/church-scope.guard';
 @Module({
   imports: [
     // Registar Requisition entities
-    TypeOrmModule.forFeature([Requisition, RequisicaoHistorico, User, Fund]),
+    TypeOrmModule.forFeature([Requisition, RequisicaoHistorico, User, Church, Fund]),
     // Importar módulos
     ApprovalModule,
     AuditModule,

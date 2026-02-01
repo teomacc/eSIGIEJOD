@@ -86,6 +86,64 @@ export class FinancesService {
     });
   }
 
+  async initMissingFunds(churchId: string): Promise<{ created: number; skipped: number }> {
+    /**
+     * INICIALIZAR FUNDOS FALTANTES
+     * 
+     * Para igrejas que foram criadas antes da mudança de código,
+     * este método cria os 10 fundos padrão se não existirem
+     */
+    const fundTypes = [
+      FundType.GENERAL,
+      FundType.CONSTRUCTION,
+      FundType.MISSIONS,
+      FundType.SOCIAL,
+      FundType.EVENTS,
+      FundType.EMERGENCY,
+      FundType.SPECIAL_PROJECTS,
+      FundType.YOUTH,
+      FundType.WOMEN,
+      FundType.MAINTENANCE,
+    ];
+
+    const mapping: Record<string, string> = {
+      [FundType.GENERAL]: 'Fundo Geral',
+      [FundType.CONSTRUCTION]: 'Fundo de Construção',
+      [FundType.MISSIONS]: 'Fundo de Missões',
+      [FundType.SOCIAL]: 'Fundo Social',
+      [FundType.EVENTS]: 'Fundo de Eventos',
+      [FundType.EMERGENCY]: 'Fundo de Emergência',
+      [FundType.SPECIAL_PROJECTS]: 'Fundo de Projectos Especiais',
+      [FundType.YOUTH]: 'Fundo da Juventude',
+      [FundType.WOMEN]: 'Fundo das Mulheres',
+      [FundType.MAINTENANCE]: 'Fundo de Manutenção',
+    };
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const fundType of fundTypes) {
+      const exists = await this.fundRepository.findOne({
+        where: { churchId, type: fundType },
+      });
+
+      if (!exists) {
+        await this.fundRepository.save({
+          churchId,
+          type: fundType,
+          balance: 0,
+          isActive: true,
+          description: mapping[fundType] || fundType,
+        });
+        created++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return { created, skipped };
+  }
+
   async getDailyRevenues(churchId: string, serviceDate: string): Promise<Revenue[]> {
     return this.revenueRepository
       .createQueryBuilder('revenue')
@@ -181,7 +239,7 @@ export class FinancesService {
         location: data.worship.location,
         observations: data.worship.observations,
       });
-      const savedWorship = await worshipRepo.save(worship);
+      const savedWorship = await worshipRepo.save(worship) as Worship;
 
       const revenue = revenueRepo.create({
         churchId: data.churchId,
@@ -193,7 +251,7 @@ export class FinancesService {
         notes: data.notes,
         attachments: data.attachments,
       });
-      const savedRevenue = await revenueRepo.save(revenue);
+      const savedRevenue = await revenueRepo.save(revenue) as Revenue;
 
       const allocations = [] as RevenueFund[];
       const incomes = [] as Income[];
@@ -231,7 +289,7 @@ export class FinancesService {
       savedRevenue.worship = savedWorship;
 
       return savedRevenue;
-    });
+    }) as Promise<Revenue>;
 
     await this.auditService.logAction({
       churchId: data.churchId,
@@ -243,7 +301,7 @@ export class FinancesService {
         type: result.type,
         paymentMethod: result.paymentMethod,
         totalAmount,
-        distribution: result.allocations?.map((item) => ({
+        distribution: result.allocations?.map((item: RevenueFund) => ({
           fundId: item.fundId,
           amount: item.amount,
         })),

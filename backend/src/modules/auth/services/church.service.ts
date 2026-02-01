@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Church } from '../entities/church.entity';
 import { CreateChurchDto, UpdateChurchDto, ChurchResponseDto } from '../dto/church.dto';
 import { User, UserRole } from '../entities/user.entity';
+import { Fund, FundType } from '../../finances/entities/fund.entity';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 
@@ -33,6 +34,8 @@ export class ChurchService {
     private churchRepository: Repository<Church>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Fund)
+    private fundRepository: Repository<Fund>,
     private auditService: AuditService,
   ) {}
 
@@ -120,6 +123,35 @@ export class ChurchService {
     });
 
     const saved = await this.churchRepository.save(church);
+
+    // 3.5. CRIAR FUNDOS PADRÃO PARA A IGREJA
+    const fundosDefault = [
+      FundType.GENERAL,
+      FundType.CONSTRUCTION,
+      FundType.MISSIONS,
+      FundType.SOCIAL,
+      FundType.EVENTS,
+      FundType.EMERGENCY,
+      FundType.SPECIAL_PROJECTS,
+      FundType.YOUTH,
+      FundType.WOMEN,
+      FundType.MAINTENANCE,
+    ];
+
+    try {
+      for (const fundoType of fundosDefault) {
+        await this.fundRepository.save({
+          churchId: saved.id,
+          type: fundoType,
+          balance: 0,
+          isActive: true,
+          description: this.formatFundTypeName(fundoType),
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao criar fundos padrão para Igreja:', error);
+      // Não lançar erro - a Igreja foi criada com sucesso mesmo se os fundos falharem
+    }
 
     // 4. REGISTRAR AUDITORIA
     // IMPORTANTE: Passar userId explicitamente (não pode ser null, BD tem constraint NOT NULL)
@@ -461,5 +493,21 @@ export class ChurchService {
       createdAt: church.createdAt,
       updatedAt: church.updatedAt,
     };
+  }
+
+  private formatFundTypeName(fundoType: FundType): string {
+    const mapping: Record<FundType, string> = {
+      [FundType.GENERAL]: 'Fundo Geral',
+      [FundType.CONSTRUCTION]: 'Fundo de Construção',
+      [FundType.MISSIONS]: 'Fundo de Missões',
+      [FundType.SOCIAL]: 'Fundo Social',
+      [FundType.EVENTS]: 'Fundo de Eventos',
+      [FundType.EMERGENCY]: 'Fundo de Emergência',
+      [FundType.SPECIAL_PROJECTS]: 'Fundo de Projectos Especiais',
+      [FundType.YOUTH]: 'Fundo da Juventude',
+      [FundType.WOMEN]: 'Fundo das Mulheres',
+      [FundType.MAINTENANCE]: 'Fundo de Manutenção',
+    };
+    return mapping[fundoType] || fundoType;
   }
 }

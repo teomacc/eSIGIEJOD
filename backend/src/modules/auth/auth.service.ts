@@ -41,11 +41,20 @@ export class AuthService {
    * Utiliza bcrypt para comparar password
    */
   async login(emailOrUsername: string, password: string) {
+    // Validar entrada
+    if (!emailOrUsername || !emailOrUsername.trim()) {
+      throw new BadRequestException('Email ou username é obrigatório');
+    }
+
+    if (!password) {
+      throw new BadRequestException('Password é obrigatória');
+    }
+
     // Procurar usuário por email OU username
     const user = await this.usersRepository.findOne({ 
       where: [
-        { email: emailOrUsername },
-        { username: emailOrUsername }
+        { email: emailOrUsername.trim() },
+        { username: emailOrUsername.trim() }
       ]
     });
 

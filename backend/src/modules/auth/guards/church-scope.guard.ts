@@ -15,7 +15,8 @@ export class ChurchScopeGuard implements CanActivate {
     }
 
     const roles = user.roles || [];
-    const isGlobal = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.LIDER_FINANCEIRO_GERAL) || roles.includes(UserRole.PASTOR_PRESIDENTE);
+    // Apenas ADMIN e LIDER_FINANCEIRO_GERAL são globais
+    const isGlobal = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.LIDER_FINANCEIRO_GERAL);
 
     if (isGlobal) {
       return true;
